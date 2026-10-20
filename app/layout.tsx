@@ -14,7 +14,15 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: "Signal Analytics Platform",
-  description: "",
+  description: "The Signal Analytics Platform is a platform for analyzing and visualizing data from the Signal app.",
+  icons: {
+    icon: "/favicon.ico",
+  },
+  openGraph: {
+    title: "Signal Analytics Platform",
+    description: "The Signal Analytics Platform is a platform for analyzing and visualizing data from the Signal app.",
+    url: "https://signal-analytics-monoedge.vercel.app",
+  },
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

@@ -1,0 +1,9 @@
+CREATE TABLE public.signals (
+    mill_id TEXT NOT NULL REFERENCES public.mills(id) ON DELETE CASCADE,
+    signal TEXT NOT NULL,
+    unit TEXT NOT NULL,
+    label TEXT NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (mill_id, signal)
+);
