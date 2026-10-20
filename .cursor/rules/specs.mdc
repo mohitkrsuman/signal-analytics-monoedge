@@ -1,0 +1,23 @@
+---
+description: Build from the phase specs, in order
+alwaysApply: true
+---
+
+# Specs
+
+Before changing the app, read the matching file in `specs/`.
+
+Phase order:
+
+1. `specs/phase-01-foundation.md`
+2. `specs/phase-02-database.md`
+3. `specs/phase-03-simulator.md`
+4. `specs/phase-04-ingest.md`
+5. `specs/phase-05-detector.md`
+6. `specs/phase-06-query-api.md`
+7. `specs/phase-07-browser.md`
+8. `specs/phase-08-ship.md`
+
+Stay inside that phase's scope and acceptance criteria. Do not add tables, routes, or detectors the specs do not name.
+
+Browser monitoring routes require a session. Ingest uses `INGEST_SECRET`, not a user session. Never import the service role key into client code, and do not commit `.env`.

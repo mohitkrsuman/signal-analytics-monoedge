@@ -1,0 +1,21 @@
+---
+description: Signal Analytics architecture boundaries
+alwaysApply: true
+---
+
+# Architecture
+
+Follow [specs/00-overview.md](specs/00-overview.md). Keep this stack.
+
+- Browser talks only to the Query API and Supabase Auth.
+- Simulator posts batches to the Ingest API. It does not write to Postgres.
+- Ingest validates, saves readings and 1-second rollups, then calls the detector.
+- Detector uses a cobble rule plus z-score and writes alerts. It does not serve the UI.
+- Query API reads live status, history, and alerts for signed-in users.
+- Supabase holds Auth, Readings, Rollups, and Alerts.
+
+Sample rate is 50 Hz (20 ms). HTTP ingest is about one second per request. Charts use rollups.
+
+One mill: `RM-01`. Signals: `motor_current`, `motor_speed`, `torque`, `vibration`, `rolling_force`, `temperature`.
+
+The load step must not create an alert. The cobble at `2026-10-19T10:06:30.000Z` must.
