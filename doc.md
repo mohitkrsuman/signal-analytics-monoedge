@@ -9,3 +9,8 @@
 ## It writes them onto the request, so the rest of this request sees the new token.
 ## It writes them onto the response, so the browser stores them for the next visit.
 ## It copies the cache headers Supabase supplies, so a shared cache does not keep one user's session and serve it to someone else.
+
+
+## supabase has auth and a public schema
+## By default, Postgres comes with a few built-in schemas like auth (where Supabase stores user passwords), storage (where it stores uploaded files), and public (where your custom application tables go).
+## Clarity & Safety: It removes any ambiguity. For example, Supabase has an auth schema and a public schema. Writing public.readings makes it 100% clear that this is your application table, not a system table.
