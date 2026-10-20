@@ -2,10 +2,12 @@
 name: react-only-when-needed
 description: >-
   Chooses React hooks, memoization, higher-order components, and client state
-  only when a concrete cost or spec requires them. Use when writing or
-  reviewing React or Next.js UI, adding useMemo, useCallback, useEffect,
-  useReducer, React.memo, HOCs, Redux, or any other client store, or when
-  optimizing renders, charts, or forms in this app.
+  only when a concrete cost or spec requires them. Keeps prop drilling to at
+  most two components and extracts a component when the same UI is used in
+  more than one place. Use when writing or reviewing React or Next.js UI,
+  adding useMemo, useCallback, useEffect, useReducer, React.memo, HOCs, Redux,
+  or any other client store, splitting components, passing props through
+  parents, or optimizing renders, charts, or forms in this app.
 ---
 
 # React only when needed
@@ -45,6 +47,18 @@ Do not wrap a handler in `useCallback` when the only consumer is a DOM element (
 Do not wrap a cheap expression in `useMemo` (a filter of a short list, a boolean, an object passed to one child that is not memoized).
 
 `React.memo` is for a child that renders often with unchanged props and whose render is expensive, such as one chart among six. Do not memoize a page or a leaf that returns a few elements.
+
+## Components and props
+
+Prop drilling stops at two components. The owner may pass a prop to a child, and that child may pass it to one grandchild. Do not forward it through a third component.
+
+When a third hop would be required, change the tree instead of adding a store:
+
+- Render the consumer as `children` so the middle component does not forward props it does not use.
+- Move the state down into the component that renders it.
+- Pass only the fields that component reads, not the whole parent object.
+
+Create a new component when the same UI may be used in more than one place. Do not copy that markup into a second screen. A one-off block stays in its parent until a second use appears or the two-component prop limit requires a split.
 
 ## Higher-order components
 
