@@ -35,12 +35,11 @@ Every sample is independent. Nothing walks a random stream from the start of the
 
 Time is an integer millisecond offset from the replay start. Sample 0 is 10:00:00.000. Sample 1 is 20 ms later. Batch `n` is second `n`.
 
-Two envelopes, both between 0 and 1, shape the regimes:
+A value is `baseline + load step + cobble jump + noise`.
 
-- Load level is 0 before 10:04. It eases from 0 to 1 over the next 5 seconds, then stays at 1 for the rest of the replay, including after the cobble.
-- Cobble level is 0 outside the two events. Each one rises over 200 ms, stays at 1 for 8 seconds, then falls back to 0 over 2 seconds. The first finishes by about 10:06:40. The second starts at 10:08:30 and finishes by about 10:08:40.
-
-The operating point is `baseline + step * load level`. A step of 0 means that signal ignores the load change. Noise is a Gaussian wiggle whose width is the signal's `noise` field. The cobble then adds or subtracts a fixed offset, or, for torque, a wide wobble around the operating point. The result is rounded to that signal's digits.
+- Before 10:04 the load step is off. At 10:04 it turns on and stays on.
+- A cobble is on for exactly 8 seconds from its start, then off. There is no separate rise or recovery ramp.
+- Noise is one repeatable number around zero, scaled by the signal's `noise` field. Torque adds a much wider wobble during a cobble.
 
 | Signal | Baseline | Load step | Cobble |
 | --- | --- | --- | --- |
@@ -67,21 +66,13 @@ Constants at the top are the contract a reviewer can point at: mill id, seed `20
 
 `SignalKey`, `Sample`, and `Batch` are the shapes. A batch is `{ mill_id, samples }`. A sample is `{ signal, timestamp, value, unit }`.
 
-`nextRandom` is the random number generator. Given a seed it returns a function that yields the next number in the range 0 to 1. Each call multiplies the state, adds a constant, and divides by 2³². Same seed, same sequence. It is not `Math.random()`.
+`noise` turns the replay seed, the sample index, and the signal index into one repeatable wiggle around zero. Same inputs, same wiggle.
 
-`sampleSeed` mixes the replay seed, the sample index, and the signal index into one integer. That is why two runs match sample for sample, and why asking for the cobble second does not require replaying the four minutes before it.
-
-`unitNoise` calls `nextRandom(sampleSeed(...))` once and subtracts 0.5, so the wiggle sits around zero. Each signal at each timestamp gets its own seed, so changing the noise of temperature does not shift the noise of current.
-
-`smoothstep` clamps its input to 0..1. Both envelopes use it so a regime change is a short ramp, not a single-sample spike.
-
-`loadLevel` answers "how far is this timestamp into the new operating band?"
-
-`cobbleLevel` answers "how far is this timestamp into the cobble?" Zero means the cobble formula adds nothing.
+`cobbleAt` returns the cobble whose 8-second window contains this timestamp, or nothing.
 
 `roundTo` keeps values numeric and stable. Current and speed use 2 decimals, torque and force 1, vibration and temperature 3.
 
-`sampleValue` is the only place a number is invented. It reads the signal row, both envelopes, and the noise, then branches:
+`sampleValue` is the only place a number is invented:
 
 - current: operating point, plus a large positive cobble term
 - speed: operating point, minus a cobble term
@@ -129,10 +120,10 @@ Constants at the top are the contract a reviewer can point at: mill id, seed `20
 
 | They ask for | Touch |
 | --- | --- |
-| Cobble earlier, later, or longer | `COBBLE_START` and the 8 second duration inside `cobbleLevel`. The printed sentence in `printPlan` must stay true. |
-| A harder or softer cobble | The offsets in `sampleValue` (190 A, 42 rpm, 12 mm/s, 480 kN, the torque multiplier). |
+| Cobble earlier, later, or longer | `COBBLE_STARTS` and `COBBLE_MS` inside `cobbleAt`. The printed sentence in `printPlan` must stay true. |
+| A harder or softer cobble | The `current`, `vibration`, `speed`, and `force` numbers on that cobble in `COBBLES`. |
 | Load step that also moves vibration | Give vibration a non-zero `step`. Today that step is 0 on purpose. |
-| Less noise, or noise that is not Gaussian | `noise` on the signal, or `unitNoise`. |
+| Less noise | The `noise` field on that signal, or `jitter` on the cobble. |
 | A different seed | `REPLAY_SEED`. Both runs must still match each other. |
 | 20 ms gaps or a different batch length | `SAMPLE_MS`. `SAMPLES_PER_SECOND` and `BATCH_COUNT` are derived from it. The spec wants 20 ms and 300 samples per batch, so say that before changing it. |
 | Another CLI flag | Add it to the known set in `main`, read it with `readFlag`, and branch before the post loop. |
@@ -162,7 +153,7 @@ Point the file at `/tmp` so you are not staring at the repo output. Delete it wh
 
 To see one function's behavior, log inside it and rerun the same command. Useful logs, one at a time:
 
-- In `loadLevel` and `cobbleLevel`, log the timestamp and the returned 0..1. At 10:02 both are 0. At 10:05 load is 1 and cobble is 0. At 10:06:34 cobble is 1. After 10:07 cobble is 0 and load is still 1.
+- In `sampleValue`, log `onLoad`, whether `cobble` was found, and the value. At 10:02 the load step is off and there is no cobble. At 10:05 the load step is on and there is no cobble. At 10:06:34 and 10:08:34 a cobble is found. At 10:07 there is no cobble.
 - In `sampleValue`, log the signal key, the operating point, the cobble level, and the rounded value. That shows which branch fired.
 - In `generateBatch`, log the batch index, the first timestamp, the last timestamp, and `samples.length`. Length must be 300. The gap between the first two distinct timestamps must be 20 ms.
 - In `postBatch`, log the status. A 404 should fall back. A 400 or 401 should be the rejection message and the process should end without a "Posted 600" line.

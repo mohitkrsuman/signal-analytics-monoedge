@@ -1,6 +1,8 @@
+// Builds raw samples. No files and no HTTP.
+// value = baseline + load step after 10:04 + cobble jump during an 8s window + small noise.
+
 export const MILL_ID = "RM-01";
 export const REPLAY_SEED = 20261019;
-
 export const REPLAY_START = "2026-10-19T10:00:00.000Z";
 export const LOAD_STEP_START = "2026-10-19T10:04:00.000Z";
 export const LOAD_STEP_END = "2026-10-19T10:06:00.000Z";
@@ -8,21 +10,16 @@ export const COBBLE_STARTS = [
   "2026-10-19T10:06:30.000Z",
   "2026-10-19T10:08:30.000Z",
 ] as const;
-export const COBBLE_START = COBBLE_STARTS[0];
 
 const SAMPLE_MS = 20;
 const REPLAY_MS = 10 * 60 * 1000;
+const COBBLE_MS = 8_000;
+const REPLAY_START_MS = Date.parse(REPLAY_START);
+const LOAD_STEP_START_MS = Date.parse(LOAD_STEP_START);
 
 export const SAMPLES_PER_SECOND = 1000 / SAMPLE_MS;
 export const BATCH_COUNT = REPLAY_MS / 1000;
 
-const LOAD_RAMP_MS = 5_000;
-const COBBLE_MS = 8_000;
-const COBBLE_ATTACK_MS = 200;
-const COBBLE_RECOVERY_MS = 2_000;
-
-const REPLAY_START_MS = Date.parse(REPLAY_START);
-const LOAD_STEP_START_MS = Date.parse(LOAD_STEP_START);
 const COBBLES = [
   { startMs: Date.parse(COBBLE_STARTS[0]), current: 210, vibration: 8, speed: -48, force: -510, jitter: 36 },
   { startMs: Date.parse(COBBLE_STARTS[1]), current: 120, vibration: 17, speed: -26, force: -340, jitter: 14 },
@@ -51,56 +48,17 @@ export type Batch = {
   samples: Sample[];
 };
 
-function nextRandom(seed: number): () => number {
-  let state = seed >>> 0;
-  return () => {
-    state = (Math.imul(1664525, state) + 1013904223) >>> 0;
-    return state / 4294967296;
-  };
+function noise(sampleIndex: number, signalIndex: number): number {
+  let state = (REPLAY_SEED + sampleIndex * 10 + signalIndex) >>> 0;
+  state = (Math.imul(1664525, state) + 1013904223) >>> 0;
+  return state / 4294967296 - 0.5;
 }
 
-function sampleSeed(sampleIndex: number, signalIndex: number): number {
-  let hash = Math.imul(REPLAY_SEED ^ sampleIndex, 0x9e3779b1);
-  hash = Math.imul(hash ^ (signalIndex + 1), 0x85ebca6b);
-  hash ^= hash >>> 16;
-  hash = Math.imul(hash, 0x7feb352d);
-  hash ^= hash >>> 15;
-  return hash >>> 0;
-}
-
-function unitNoise(sampleIndex: number, signalIndex: number): number {
-  const next = nextRandom(sampleSeed(sampleIndex, signalIndex));
-  return next() - 0.5;
-}
-
-function smoothstep(amount: number): number {
-  return Math.min(1, Math.max(0, amount));
-}
-
-function loadLevel(timestampMs: number): number {
-  if (timestampMs < LOAD_STEP_START_MS) return 0;
-  return smoothstep((timestampMs - LOAD_STEP_START_MS) / LOAD_RAMP_MS);
-}
-
-function oneCobbleLevel(timestampMs: number, startMs: number): number {
-  const elapsed = timestampMs - startMs;
-  if (elapsed < 0 || elapsed >= COBBLE_MS + COBBLE_RECOVERY_MS) return 0;
-  if (elapsed < COBBLE_ATTACK_MS) return smoothstep(elapsed / COBBLE_ATTACK_MS);
-  if (elapsed < COBBLE_MS) return 1;
-  return 1 - smoothstep((elapsed - COBBLE_MS) / COBBLE_RECOVERY_MS);
-}
-
-function activeCobble(timestampMs: number) {
-  let chosen = COBBLES[0];
-  let level = 0;
-  for (const cobble of COBBLES) {
-    const next = oneCobbleLevel(timestampMs, cobble.startMs);
-    if (next > level) {
-      chosen = cobble;
-      level = next;
-    }
-  }
-  return { cobble: chosen, level };
+function cobbleAt(timestampMs: number) {
+  return COBBLES.find((cobble) => {
+    const elapsed = timestampMs - cobble.startMs;
+    return elapsed >= 0 && elapsed < COBBLE_MS;
+  });
 }
 
 function roundTo(value: number, digits: number): number {
@@ -110,27 +68,30 @@ function roundTo(value: number, digits: number): number {
 
 function sampleValue(signalIndex: number, sampleIndex: number, timestampMs: number): number {
   const signal = SIGNALS[signalIndex];
-  const level = loadLevel(timestampMs);
-  const { cobble, level: cobbleLevel } = activeCobble(timestampMs);
-  let noise = unitNoise(sampleIndex, signalIndex) * signal.noise;
-  if (signal.key === "torque") noise *= 1 + cobbleLevel * 30;
-  if (signal.key === "motor_current" || signal.key === "vibration") {
-    noise += unitNoise(sampleIndex, signalIndex + 6) * cobble.jitter * cobbleLevel;
-  }
+  const onLoad = timestampMs >= LOAD_STEP_START_MS;
+  const cobble = cobbleAt(timestampMs);
+  let value = signal.baseline + (onLoad ? signal.step : 0);
+  value += noise(sampleIndex, signalIndex) * signal.noise;
 
   if (signal.key === "temperature") {
-    const drift = 0.55 * Math.sin((2 * Math.PI * (timestampMs - REPLAY_START_MS)) / 240_000);
-    return roundTo(signal.baseline + drift + noise, signal.digits);
+    value += 0.55 * Math.sin((2 * Math.PI * (timestampMs - REPLAY_START_MS)) / 240_000);
+  } else if (cobble) {
+    const jump = {
+      motor_current: cobble.current,
+      motor_speed: cobble.speed,
+      torque: 0,
+      vibration: cobble.vibration,
+      rolling_force: cobble.force,
+      temperature: 0,
+    }[signal.key];
+    value += jump;
+    if (signal.key === "torque") value += noise(sampleIndex, signalIndex + 7) * 8_000;
+    if (signal.key === "motor_current" || signal.key === "vibration") {
+      value += noise(sampleIndex, signalIndex + 6) * cobble.jitter;
+    }
   }
 
-  const shift =
-    signal.key === "motor_current" ? cobble.current
-    : signal.key === "motor_speed" ? cobble.speed
-    : signal.key === "vibration" ? cobble.vibration
-    : signal.key === "rolling_force" ? cobble.force
-    : 0;
-  const wobble = signal.key === "torque" ? Math.sin(sampleIndex * 1.7) * cobbleLevel * 8_000 : 0;
-  return roundTo(signal.baseline + signal.step * level + cobbleLevel * shift + noise + wobble, signal.digits);
+  return roundTo(value, signal.digits);
 }
 
 export function generateBatch(batchIndex: number): Batch {
