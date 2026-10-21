@@ -14,3 +14,6 @@
 ## supabase has auth and a public schema
 ## By default, Postgres comes with a few built-in schemas like auth (where Supabase stores user passwords), storage (where it stores uploaded files), and public (where your custom application tables go).
 ## Clarity & Safety: It removes any ambiguity. For example, Supabase has an auth schema and a public schema. Writing public.readings makes it 100% clear that this is your application table, not a system table.
+
+
+## These files are .mts rather than .ts because the Next.js app is CommonJS: package.json has no "type": "module". Node follows that setting for a .ts file, so the simulator's import / export syntax would not run as an ES module. .mts is the TypeScript form of .mjs, and Node always treats it as an ES module, which is what node --experimental-strip-types simulator/run.mts needs. That is also why the simulator has its own tsconfig.json. The app config excludes this folder, because an import path ending in .mts is not allowed there.
