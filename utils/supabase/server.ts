@@ -6,6 +6,7 @@ import { cookies } from "next/headers";
  * Uses the publishable key plus the request cookies. It does not use the secret key.
  */
 export async function createClient() {
+  const cookieStore = await cookies();
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
 
@@ -14,8 +15,6 @@ export async function createClient() {
       "Missing NEXT_PUBLIC_SUPABASE_URL or NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY",
     );
   }
-
-  const cookieStore = await cookies();
 
   return createServerClient(url, key, {
     cookies: {

@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "simulate": "node --experimental-strip-types --disable-warning=ExperimentalWarning simulator/run.mts"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.7",
