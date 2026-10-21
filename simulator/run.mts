@@ -4,7 +4,7 @@ import { dirname } from "node:path";
 import type { WriteStream } from "node:fs";
 import {
   BATCH_COUNT,
-  COBBLE_START,
+  COBBLE_STARTS,
   LOAD_STEP_END,
   LOAD_STEP_START,
   MILL_ID,
@@ -23,7 +23,7 @@ function printPlan(): void {
   console.log(`Mill ${MILL_ID}`);
   console.log(`Replay starts at ${REPLAY_START} and lasts 10 minutes at 50 Hz.`);
   console.log(`Load step ${LOAD_STEP_START} to ${LOAD_STEP_END}.`);
-  console.log(`Cobble starts at ${COBBLE_START} and lasts about 8 seconds.`);
+  console.log(`Cobbles start at ${COBBLE_STARTS.join(" and ")}. Each lasts about 8 seconds.`);
 }
 
 function readFlag(argv: string[], name: string): string | undefined {
@@ -137,6 +137,7 @@ function printCheckpoints(): void {
   printSnapshot("Normal at 10:02:00", 120);
   printSnapshot("Load step at 10:05:00", 300);
   printSnapshot("Cobble at 10:06:34", 394);
+  printSnapshot("Cobble at 10:08:34", 514);
 }
 
 async function main(): Promise<void> {

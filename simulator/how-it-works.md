@@ -19,13 +19,13 @@ One mill, `RM-01`. Six signals, each sample carrying a signal key, an ISO-8601 U
 | `rolling_force` | kN | Stand force |
 | `temperature` | C | Slow thermal drift |
 
-Sampling is 50 Hz, so timestamps step by 20 ms. A post is about one second: 50 timestamps times 6 signals, which is 300 samples. Ten minutes is 600 of those batches, 180,000 samples. The replay starts at `2026-10-19T10:00:00.000Z`. The same seed must reproduce the same numbers. The cobble time must be visible without opening the generator: the script prints `2026-10-19T10:06:30.000Z` before it does any work.
+Sampling is 50 Hz, so timestamps step by 20 ms. A post is about one second: 50 timestamps times 6 signals, which is 300 samples. Ten minutes is 600 of those batches, 180,000 samples. The replay starts at `2026-10-19T10:00:00.000Z`. The same seed must reproduce the same numbers. The cobble times must be visible without opening the generator: the script prints `2026-10-19T10:06:30.000Z` and `2026-10-19T10:08:30.000Z` before it does any work.
 
 Three regimes:
 
 - Until 10:04, every signal wanders in a tight band around its baseline.
 - From 10:04 to 10:06, current, speed, torque, and rolling force move together onto a new steady band. Vibration and temperature stay ordinary. This is an operating change, not a fault. The new band stays after 10:06. "Post-step baseline" means that new level.
-- From 10:06:30 for about 8 seconds, current and vibration jump, speed and force fall, torque swings, temperature barely moves. Then the signals ease back to the post-step band.
+- From 10:06:30 for about 8 seconds, and again from 10:08:30 for about 8 seconds, current and vibration jump, speed and force fall, torque swings, temperature barely moves. The two jumps are different sizes, and the samples wander inside each window. After each window the signals ease back to the post-step band. The batch is only raw numbers. It does not say that a cobble happened.
 
 When ingest exists, the body is `mill_id` plus `samples`, and the header is `Authorization: Bearer <INGEST_SECRET>`. A rejected batch must exit non-zero. A missing route or a missing secret is not a rejection: the script falls back to a local file.
 
@@ -38,7 +38,7 @@ Time is an integer millisecond offset from the replay start. Sample 0 is 10:00:0
 Two envelopes, both between 0 and 1, shape the regimes:
 
 - Load level is 0 before 10:04. It eases from 0 to 1 over the next 5 seconds, then stays at 1 for the rest of the replay, including after the cobble.
-- Cobble level is 0 outside the event. It rises over 200 ms starting at 10:06:30, stays at 1 until 8 seconds have passed, then falls back to 0 over 2 seconds. The event is finished by about 10:06:40.
+- Cobble level is 0 outside the two events. Each one rises over 200 ms, stays at 1 for 8 seconds, then falls back to 0 over 2 seconds. The first finishes by about 10:06:40. The second starts at 10:08:30 and finishes by about 10:08:40.
 
 The operating point is `baseline + step * load level`. A step of 0 means that signal ignores the load change. Noise is a Gaussian wiggle whose width is the signal's `noise` field. The cobble then adds or subtracts a fixed offset, or, for torque, a wide wobble around the operating point. The result is rounded to that signal's digits.
 
