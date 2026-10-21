@@ -7,15 +7,15 @@ alwaysApply: true
 
 Before changing the app, read the matching file in `specs/`.
 
-Phase order:
+Phase order. File names keep their original numbers. This list is the build order.
 
 1. `specs/phase-01-foundation.md`
 2. `specs/phase-02-database.md`
 3. `specs/phase-03-simulator.md`
-4. `specs/phase-04-ingest.md`
-5. `specs/phase-05-detector.md`
-6. `specs/phase-06-query-api.md`
-7. `specs/phase-07-browser.md`
+4. `specs/phase-07-browser.md` — screens against the preview replay
+5. `specs/phase-04-ingest.md`
+6. `specs/phase-05-detector.md`
+7. `specs/phase-06-query-api.md` — replaces the preview
 8. `specs/phase-08-ship.md`
 
 Stay inside that phase's scope and acceptance criteria. Do not add tables, routes, or detectors the specs do not name.

@@ -7,7 +7,7 @@ alwaysApply: true
 
 Follow [specs/00-overview.md](specs/00-overview.md). Keep this stack.
 
-- Browser talks only to the Query API and Supabase Auth.
+- Browser talks to Supabase Auth and, until the Query API exists, the preview replay. After that it talks only to the Query API and Supabase Auth.
 - Simulator posts batches to the Ingest API. It does not write to Postgres.
 - Ingest validates, saves readings and 1-second rollups, then calls the detector.
 - Detector uses a cobble rule plus z-score and writes alerts. It does not serve the UI.
