@@ -2,23 +2,18 @@ import { Suspense } from "react";
 import Link from "next/link";
 import { ChartLegend, SignalChart } from "@/components/signal-chart";
 import {
-  COBBLE_ALERT,
-  historyRange,
   HISTORY_RANGES,
-  isSignalKey,
-  rollups,
-  SIGNALS,
+  historyRange,
+  MILL_ID,
+  overlappingAlert,
   type HistoryRangeKey,
-  type SignalKey,
-} from "@/lib/preview/replay";
+} from "@/lib/monitor";
+import { getHistory, getMills, getSessionClient, listAlerts } from "@/lib/query";
 
 export default function HistoryPage({
   searchParams,
 }: {
-  searchParams: Promise<{
-    signal?: string | string[];
-    range?: string | string[];
-  }>;
+  searchParams: Promise<{ signal?: string | string[]; range?: string | string[] }>;
 }) {
   return (
     <Suspense fallback={<p className="text-sm text-neutral-500">Loading history…</p>}>
@@ -30,39 +25,47 @@ export default function HistoryPage({
 async function History({
   searchParams,
 }: {
-  searchParams: Promise<{
-    signal?: string | string[];
-    range?: string | string[];
-  }>;
+  searchParams: Promise<{ signal?: string | string[]; range?: string | string[] }>;
 }) {
   const params = await searchParams;
-  const signal = selectedSignal(first(params.signal));
+  const supabase = await getSessionClient();
+  const mill = supabase
+    ? (await getMills(supabase)).find((item) => item.id === MILL_ID)
+    : undefined;
+  if (!supabase || !mill) {
+    return <p className="text-sm text-neutral-600">Mill {MILL_ID} is not in the catalog.</p>;
+  }
+
+  const signal =
+    mill.signals.find((item) => item.key === first(params.signal)) ?? mill.signals[0];
   const rangeKey = selectedRange(first(params.range));
   const range = historyRange(rangeKey);
-  const points = rollups(signal.key, range.from, range.to);
-  const alertStart = Date.parse(COBBLE_ALERT.startedAt);
-  const alertEnd = Date.parse(COBBLE_ALERT.endedAt);
+  const history = signal
+    ? await getHistory(supabase, MILL_ID, signal.key, range.from, range.to)
+    : { points: [] };
+  const points = "points" in history ? history.points : [];
+  const shade = overlappingAlert(await listAlerts(supabase, MILL_ID), range.from, range.to);
 
   return (
     <div className="flex flex-col gap-6">
       <div>
         <h1 className="text-2xl font-semibold">History</h1>
         <p className="text-sm text-neutral-600">
-          One-second rollups for {signal.label}. The cobble is marked. The load
-          step is only a change in level.
+          One-second rollups for {signal?.label ?? "the selected signal"}. An alert is marked
+          when one falls in this range. The load step is only a change in level.
         </p>
       </div>
 
       <div className="flex flex-col gap-3">
         <div className="flex flex-wrap gap-2">
-          {SIGNALS.map((item) => (
+          {mill.signals.map((item) => (
             <Link
               key={item.key}
               href={historyHref(item.key, rangeKey)}
               prefetch
-              aria-current={item.key === signal.key ? "page" : undefined}
+              aria-current={item.key === signal?.key ? "page" : undefined}
               className={`rounded border px-3 py-1.5 text-sm ${
-                item.key === signal.key
+                item.key === signal?.key
                   ? "border-neutral-900 bg-neutral-900 text-white"
                   : "border-neutral-300 bg-white"
               }`}
@@ -75,7 +78,7 @@ async function History({
           {(Object.keys(HISTORY_RANGES) as HistoryRangeKey[]).map((key) => (
             <Link
               key={key}
-              href={historyHref(signal.key, key)}
+              href={historyHref(signal?.key ?? "motor_current", key)}
               prefetch
               aria-current={key === rangeKey ? "page" : undefined}
               className={`rounded border px-3 py-1.5 text-sm ${
@@ -92,15 +95,15 @@ async function History({
 
       <section className="rounded-lg border border-neutral-200 bg-white p-4 shadow-sm">
         <h2 className="mb-2 text-sm font-medium">
-          {signal.label}{" "}
-          <span className="font-normal text-neutral-500">{signal.unit}</span>
+          {signal?.label}{" "}
+          <span className="font-normal text-neutral-500">{signal?.unit}</span>
         </h2>
         <SignalChart
-          label={`${signal.label} from ${range.label}`}
+          label={`${signal?.label ?? "Signal"} from ${range.label}`}
           points={points}
-          unit={signal.unit}
-          alertFrom={alertStart}
-          alertTo={alertEnd}
+          unit={signal?.unit}
+          alertFrom={shade ? Date.parse(shade.startedAt) : undefined}
+          alertTo={shade?.endedAt ? Date.parse(shade.endedAt) : undefined}
           allowZoom
         />
         <div className="mt-3">
@@ -111,14 +114,8 @@ async function History({
   );
 }
 
-function historyHref(signal: SignalKey, range: HistoryRangeKey) {
+function historyHref(signal: string, range: HistoryRangeKey) {
   return `/history?signal=${signal}&range=${range}`;
-}
-
-function selectedSignal(key: string | undefined) {
-  return isSignalKey(key)
-    ? SIGNALS.find((signal) => signal.key === key) ?? SIGNALS[0]
-    : SIGNALS[0];
 }
 
 function selectedRange(key: string | undefined): HistoryRangeKey {

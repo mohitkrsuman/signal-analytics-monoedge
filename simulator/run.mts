@@ -124,7 +124,13 @@ async function main(): Promise<void> {
   }
 
   const secret = await readEnv("INGEST_SECRET");
-  const url = (readFlag(argv, "--url") || (await readEnv("APP_URL")) || "http://localhost:3000").replace(/\/$/, "");
+  const nodeEnv = process.env.NODE_ENV;
+  const dev = nodeEnv === "dev" || nodeEnv === "development";
+  const url = (
+    readFlag(argv, "--url") ||
+    (dev ? "http://localhost:3000" : await readEnv("APP_URL")) ||
+    "http://localhost:3000"
+  ).replace(/\/$/, "");
   if (!secret) {
     console.log("INGEST_SECRET is not set. Writing a local fixture until ingest can be called.");
     await writeFixture(DEFAULT_FIXTURE);

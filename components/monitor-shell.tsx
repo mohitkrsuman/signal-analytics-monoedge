@@ -21,16 +21,7 @@ export function MonitorShell({ children }: { children: ReactNode }) {
           </Suspense>
         </div>
       </aside>
-      <div className="flex min-w-0 flex-1 flex-col">
-        <div className="px-6 pt-6">
-          <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-950">
-            Preview of the seeded replay, 19 Oct 2026, 10:00–10:10 UTC. These
-            charts are not stored readings. Ingest and the Query API replace this
-            preview later.
-          </p>
-        </div>
-        <main className="flex flex-1 flex-col gap-6 px-6 py-6">{children}</main>
-      </div>
+      <main className="flex min-w-0 flex-1 flex-col gap-6 px-6 py-6">{children}</main>
     </div>
   );
 }

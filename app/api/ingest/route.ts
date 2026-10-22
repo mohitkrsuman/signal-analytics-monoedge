@@ -1,11 +1,12 @@
 import { getMillSignals } from "@/lib/catalog";
 import { detect } from "@/lib/detect";
+import { noteIngest } from "@/lib/ingest-head";
 import { createAdminClient } from "@/utils/supabase/admin";
 
 type Sample = { signal: string; timestamp: string; value: number };
 
 export async function POST(request: Request) {
-    const secret = process.env.INGEST_SECRET_KEY;
+    const secret = process.env.INGEST_SECRET;
     const header = request.headers.get("authorization");
 
     if (!secret || header !== `Bearer ${secret}`) {
@@ -64,11 +65,10 @@ export async function POST(request: Request) {
     }
 
     const times = samples.map((sample) => Date.parse(sample.timestamp));
-    await detect(
-        mill.id,
-        new Date(Math.min(...times)).toISOString(),
-        new Date(Math.max(...times)).toISOString(),
-    );
+    const from = new Date(Math.min(...times)).toISOString();
+    const to = new Date(Math.max(...times)).toISOString();
+    noteIngest(mill.id, to);
+    await detect(mill.id, from, to);
 
     return Response.json({ count: samples.length }, { status: 202 });
 }

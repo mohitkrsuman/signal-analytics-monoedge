@@ -12,7 +12,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { formatClock, formatValue, type RollupPoint } from "@/lib/preview/replay";
+import { formatClock, formatValue, type RollupPoint } from "@/lib/monitor";
 
 type ChartRow = {
   t: number;
@@ -27,6 +27,7 @@ export function SignalChart({
   alertFrom,
   alertTo,
   allowZoom = false,
+  tall = false,
 }: {
   label: string;
   points: RollupPoint[];
@@ -34,6 +35,7 @@ export function SignalChart({
   alertFrom?: number;
   alertTo?: number;
   allowZoom?: boolean;
+  tall?: boolean;
 }) {
   if (points.length === 0) {
     return (
@@ -69,14 +71,14 @@ export function SignalChart({
 
   return (
     <div
-      className={`w-full min-w-0 ${allowZoom ? "h-80" : "h-48"}`}
+      className={`w-full min-w-0 ${tall ? "h-[70vh]" : allowZoom ? "h-80" : "h-48"}`}
       role="img"
       aria-label={label}
     >
       <ResponsiveContainer
         width="100%"
         height="100%"
-        initialDimension={{ width: 640, height: allowZoom ? 320 : 192 }}
+        initialDimension={{ width: 640, height: tall ? 640 : allowZoom ? 320 : 192 }}
       >
         <ComposedChart data={data} margin={{ top: 8, right: 8, left: 0, bottom: 4 }}>
           <CartesianGrid vertical={false} stroke="#f5f5f4" />
