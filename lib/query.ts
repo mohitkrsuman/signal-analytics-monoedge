@@ -2,6 +2,8 @@ import { connection } from "next/server";
 import { recentIngestEnd } from "@/lib/ingest-head";
 import { createClient } from "@/utils/supabase/server";
 import {
+  alertContext,
+  type AlertContext,
   type AlertSummary,
   LIVE_WINDOW_MS,
   type LiveSnapshot,
@@ -57,6 +59,7 @@ export async function getLive(
   supabase: Db,
   millId: string,
   since?: string | null,
+  windowMs = LIVE_WINDOW_MS,
 ): Promise<LiveSnapshot | null> {
   const mill = await getMills(supabase).then((mills) => mills.find((item) => item.id === millId));
   if (!mill) return null;
@@ -93,7 +96,7 @@ export async function getLive(
   const rollups = new Map<string, RollupPoint[]>();
   if (endBucket) {
     const endMs = Date.parse(endBucket);
-    const windowStart = endMs - LIVE_WINDOW_MS;
+    const windowStart = endMs - windowMs;
     const sinceMs = since ? Date.parse(since) : Number.NaN;
     const incremental = Number.isFinite(sinceMs) && sinceMs >= windowStart && sinceMs < endMs;
     window = { from: incremental ? sinceMs : windowStart, to: endMs };
@@ -115,7 +118,7 @@ export async function getLive(
         ? query.gt("bucket_start", new Date(sinceMs).toISOString())
         : query.gte("bucket_start", new Date(windowStart).toISOString());
       return bounded.range(from, to);
-    });
+    }, Math.ceil(windowMs / 1000) * mill.signals.length + 1000);
     for (const row of rows) {
       const points = rollups.get(row.signal) ?? [];
       points.push(toPoint(row.bucket_start, row.min, row.max, row.avg));
@@ -231,18 +234,19 @@ export async function listAlerts(supabase: Db, millId: string): Promise<AlertSum
 export async function getAlert(supabase: Db, id: string) {
   const { data, error } = await supabase
     .from("alerts")
-    .select("id, mill_id, started_at, ended_at, severity, reason, signals, detector, score")
+    .select("id, mill_id, started_at, ended_at, severity, reason, signals, detector, score, context")
     .eq("id", id)
     .maybeSingle();
   if (error) throw new Error(error.message);
   if (!data) return null;
 
   const alert = toAlert(data);
+  const context = alertContext(data.context);
   const mills = await getMills(supabase);
   const mill = mills.find((item) => item.id === alert.millId);
-  const ended = alert.endedAt ?? alert.startedAt;
+  const endedMs = incidentEnd(alert.endedAt, context, alert.startedAt);
   const fromMs = Date.parse(alert.startedAt) - 30_000;
-  const toMs = Date.parse(ended) + 30_000;
+  const toMs = endedMs + 30_000;
   const series = [];
   for (const key of alert.signals) {
     const info = mill?.signals.find((signal) => signal.key === key);
@@ -252,10 +256,18 @@ export async function getAlert(supabase: Db, id: string) {
       label: info?.label ?? key,
       unit: info?.unit ?? "",
       rollups: "points" in history ? history.points : [],
+      evidence: context?.signals[key] ?? null,
     });
   }
 
-  return { alert, fromMs, toMs, series };
+  return { alert, context, fromMs, toMs, series };
+}
+
+function incidentEnd(endedAt: string | null, context: AlertContext | null, startedAt: string) {
+  if (endedAt) return Date.parse(endedAt);
+  const through = context?.through ? Date.parse(context.through) : Number.NaN;
+  if (Number.isFinite(through)) return through + 1000;
+  return Date.parse(startedAt);
 }
 
 async function readPages<T>(load: (from: number, to: number) => PromiseLike<Page<T>>, cap = 2000) {

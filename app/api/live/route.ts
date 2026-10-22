@@ -1,4 +1,4 @@
-import { MILL_ID } from "@/lib/monitor";
+import { liveWindowMinutes, MILL_ID } from "@/lib/monitor";
 import { getLive, getSessionClient } from "@/lib/query";
 
 export async function GET(request: Request) {
@@ -7,7 +7,8 @@ export async function GET(request: Request) {
 
   const params = new URL(request.url).searchParams;
   const millId = params.get("mill_id") ?? MILL_ID;
-  const live = await getLive(supabase, millId, params.get("since"));
+  const minutes = liveWindowMinutes(params.get("minutes") ?? undefined);
+  const live = await getLive(supabase, millId, params.get("since"), minutes * 60 * 1000);
   if (!live) return Response.json({ error: "Unknown mill" }, { status: 404 });
 
   return Response.json({

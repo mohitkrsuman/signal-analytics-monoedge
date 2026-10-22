@@ -1,6 +1,6 @@
 import { Suspense } from "react";
 import Link from "next/link";
-import { formatClock, MILL_ID, signalLabel } from "@/lib/monitor";
+import { type AlertSummary, formatClock, MILL_ID, signalLabel } from "@/lib/monitor";
 import { getMills, getSessionClient, listAlerts } from "@/lib/query";
 
 export default function IncidentsPage() {
@@ -40,6 +40,7 @@ async function Incidents() {
                 <div className="flex flex-wrap items-baseline justify-between gap-2">
                   <p className="text-sm font-medium">
                     {formatClock(Date.parse(alert.startedAt))}
+                    <span className="ml-2 font-normal text-neutral-600">{incidentState(alert)}</span>
                   </p>
                   <p
                     className={`rounded px-2 py-0.5 text-xs font-medium ${
@@ -64,4 +65,12 @@ async function Incidents() {
       )}
     </div>
   );
+}
+
+function incidentState(alert: AlertSummary) {
+  if (!alert.endedAt) return "Open";
+  const seconds = Math.max(0, Math.round((Date.parse(alert.endedAt) - Date.parse(alert.startedAt)) / 1000));
+  if (seconds < 60) return `Closed · ${seconds}s`;
+  const minutes = Math.floor(seconds / 60);
+  return `Closed · ${minutes}m ${seconds % 60}s`;
 }

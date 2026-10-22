@@ -40,6 +40,7 @@ export async function GET(
     signals: incident.alert.signals,
     detector: incident.alert.detector,
     score: incident.alert.score,
+    context: incident.context,
     from: new Date(incident.fromMs).toISOString(),
     to: new Date(incident.toMs).toISOString(),
     series: incident.series.map((series) => ({

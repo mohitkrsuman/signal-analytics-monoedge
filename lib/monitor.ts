@@ -1,5 +1,12 @@
 export const MILL_ID = "RM-01";
-export const LIVE_WINDOW_MS = 4 * 60 * 1000;
+export const LIVE_WINDOW_MINUTES = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10] as const;
+export const DEFAULT_LIVE_MINUTES = 4;
+export const LIVE_WINDOW_MS = DEFAULT_LIVE_MINUTES * 60 * 1000;
+
+export function liveWindowMinutes(value: string | undefined) {
+  const minutes = Number(value);
+  return (LIVE_WINDOW_MINUTES as readonly number[]).includes(minutes) ? minutes : DEFAULT_LIVE_MINUTES;
+}
 
 export const HISTORY_RANGES = {
   replay: {
@@ -40,6 +47,46 @@ export type AlertSummary = {
   signals: string[];
   reason: string;
 };
+
+export type SignalEvidence = {
+  baseline: number;
+  stddev: number;
+  latest: number;
+  direction: "up" | "down" | "steady";
+  z: number;
+};
+
+export type AlertContext = {
+  through: string;
+  checks: string[];
+  signals: Record<string, SignalEvidence>;
+};
+
+export function alertContext(value: unknown): AlertContext | null {
+  if (!value || typeof value !== "object") return null;
+  const record = value as { through?: unknown; checks?: unknown; signals?: unknown };
+  if (!record.signals || typeof record.signals !== "object") return null;
+
+  const signals: Record<string, SignalEvidence> = {};
+  for (const [key, raw] of Object.entries(record.signals)) {
+    if (!raw || typeof raw !== "object") continue;
+    const item = raw as Partial<SignalEvidence>;
+    if (typeof item.baseline !== "number" || typeof item.latest !== "number") continue;
+    signals[key] = {
+      baseline: item.baseline,
+      stddev: typeof item.stddev === "number" ? item.stddev : 0,
+      latest: item.latest,
+      direction: item.direction === "up" || item.direction === "down" ? item.direction : "steady",
+      z: typeof item.z === "number" ? item.z : 0,
+    };
+  }
+
+  return {
+    through: typeof record.through === "string" ? record.through : "",
+    checks: Array.isArray(record.checks) ? record.checks.filter((item) => typeof item === "string") : [],
+    signals,
+  };
+}
 
 export type LiveSignal = {
   key: string;
@@ -142,7 +189,7 @@ export function liveFromWire(body: {
   };
 }
 
-export function mergeLive(current: LiveSnapshot, update: LiveSnapshot): LiveSnapshot {
+export function mergeLive(current: LiveSnapshot, update: LiveSnapshot, windowMs = LIVE_WINDOW_MS): LiveSnapshot {
   let end = Number.NEGATIVE_INFINITY;
   const signals = current.signals.map((signal) => {
     const next = update.signals.find((item) => item.key === signal.key);
@@ -166,13 +213,13 @@ export function mergeLive(current: LiveSnapshot, update: LiveSnapshot): LiveSnap
       ? signals
       : signals.map((signal) => ({
           ...signal,
-          rollups: signal.rollups.filter((point) => point.t >= end - LIVE_WINDOW_MS),
+          rollups: signal.rollups.filter((point) => point.t >= end - windowMs),
         }));
 
   return {
     millId: update.millId,
     status: update.status,
-    window: end === Number.NEGATIVE_INFINITY ? current.window : { from: end - LIVE_WINDOW_MS, to: end },
+    window: end === Number.NEGATIVE_INFINITY ? current.window : { from: end - windowMs, to: end },
     signals: trimmed,
     alerts: update.alerts,
   };
