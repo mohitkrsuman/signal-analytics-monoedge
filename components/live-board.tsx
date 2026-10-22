@@ -171,7 +171,7 @@ export function LiveBoard({ millId, minutes }: { millId: string; minutes: number
             Latest incident, {formatClock(Date.parse(latest.startedAt))}
           </Link>
         ) : (
-          <p className="text-sm text-neutral-600">No alerts yet. Run the simulator to replay the mill.</p>
+          <p className="text-sm text-neutral-600">No alerts yet. Use Run replay to load the mill.</p>
         )}
       </section>
 

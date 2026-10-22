@@ -27,7 +27,7 @@ async function Incidents() {
 
       {rows.length === 0 ? (
         <p className="text-sm text-neutral-600">
-          No alerts yet. Run the simulator to replay the mill.
+          No alerts yet. Use Run replay to load the mill.
         </p>
       ) : (
         <ul className="flex flex-col gap-3">

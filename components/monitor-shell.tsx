@@ -2,6 +2,7 @@ import { Suspense, type ReactNode } from "react";
 import { connection } from "next/server";
 import { signOut } from "@/app/auth/actions";
 import { MonitorNav, MonitorNavFallback } from "@/components/monitor-nav";
+import { ReplayButton } from "@/components/replay-button";
 import { createClient } from "@/utils/supabase/server";
 
 export function MonitorShell({ children }: { children: ReactNode }) {
@@ -37,6 +38,7 @@ async function SessionControls() {
 
   return (
     <div className="flex flex-col gap-3">
+      <ReplayButton />
       <p className="truncate text-sm text-neutral-600">{email ?? "Signed in"}</p>
       <form action={signOut}>
         <button

@@ -40,7 +40,7 @@ export function SignalChart({
   if (points.length === 0) {
     return (
       <p className="text-sm text-neutral-600">
-        No readings yet. Run the simulator to load the mill.
+        No readings yet. Use Run replay to load the mill.
       </p>
     );
   }

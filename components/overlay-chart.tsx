@@ -38,7 +38,7 @@ export function OverlayChart({
   const visible = signals.filter((signal) => !hidden.includes(signal.key) && signal.rollups.length > 0);
 
   if (rows.length === 0) {
-    return <p className="text-sm text-neutral-600">No readings yet. Run the simulator to load the mill.</p>;
+    return <p className="text-sm text-neutral-600">No readings yet. Use Run replay to load the mill.</p>;
   }
 
   const xMin = rows[0].t;
