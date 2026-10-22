@@ -1,4 +1,5 @@
 import { Suspense, type ReactNode } from "react";
+import { connection } from "next/server";
 import { signOut } from "@/app/auth/actions";
 import { MonitorNav, MonitorNavFallback } from "@/components/monitor-nav";
 import { createClient } from "@/utils/supabase/server";
@@ -35,6 +36,9 @@ export function MonitorShell({ children }: { children: ReactNode }) {
 }
 
 async function SessionControls() {
+  // getClaims() reads the current time. connection() waits until request
+  // time so that read stays outside the prerender.
+  await connection();
   const supabase = await createClient();
   const { data } = await supabase.auth.getClaims();
   const emailClaim = data?.claims.email;
