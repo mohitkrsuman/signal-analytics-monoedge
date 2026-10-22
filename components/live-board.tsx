@@ -19,24 +19,26 @@ import {
 
 const POLL_MS = 1000;
 const IDLE_MS = 3000;
+const STORED_MINUTES = LIVE_WINDOW_MINUTES[LIVE_WINDOW_MINUTES.length - 1];
 
 export function LiveBoard({ millId, minutes }: { millId: string; minutes: number }) {
   const [live, setLive] = useState<LiveSnapshot | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [focus, setFocus] = useState<string | null>(null);
   const [feed, setFeed] = useState<"receiving" | "idle">("idle");
+  const [backMs, setBackMs] = useState(0);
   const liveRef = useRef<LiveSnapshot | null>(null);
   const lastStamp = useRef<number | null>(null);
   const lastMove = useRef(0);
 
   useEffect(() => {
     let stopped = false;
-    const windowMs = minutes * 60 * 1000;
+    const windowMs = STORED_MINUTES * 60 * 1000;
     liveRef.current = null;
 
     async function load() {
       const since = newestBucket(liveRef.current);
-      const params = new URLSearchParams({ mill_id: millId, minutes: String(minutes) });
+      const params = new URLSearchParams({ mill_id: millId, minutes: String(STORED_MINUTES) });
       if (since) params.set("since", since);
       const response = await fetch(`/api/live?${params}`, { cache: "no-store" });
       if (stopped) return;
@@ -82,15 +84,22 @@ export function LiveBoard({ millId, minutes }: { millId: string; minutes: number
     return () => {
       stopped = true;
     };
-  }, [millId, minutes]);
+  }, [millId]);
 
   if (error) return <p className="text-sm text-neutral-600">{error}</p>;
   if (!live) return <p className="text-sm text-neutral-500">Loading live mill…</p>;
 
-  const shade = live.window ? overlappingAlert(live.alerts, live.window.from, live.window.to) : null;
+  const span = signalSpan(live.signals);
+  const viewMs = minutes * 60 * 1000;
+  const maxBack = span ? Math.max(0, span.to - span.from - viewMs) : 0;
+  const back = Math.min(backMs, maxBack);
+  const viewTo = span ? span.to - back : 0;
+  const viewFrom = viewTo - viewMs;
+  const shown = span ? sliceSignals(live.signals, viewFrom, viewTo) : live.signals;
+  const shade = span ? overlappingAlert(live.alerts, viewFrom, viewTo) : null;
   const open = live.alerts.find((alert) => alert.endedAt === null) ?? null;
   const latest = live.alerts[0] ?? null;
-  const focused = live.signals.find((signal) => signal.key === focus) ?? null;
+  const focused = shown.find((signal) => signal.key === focus) ?? null;
   const feedTime = newestReading(live);
 
   return (
@@ -99,7 +108,7 @@ export function LiveBoard({ millId, minutes }: { millId: string; minutes: number
         <div>
           <h1 className="text-2xl font-semibold">Live</h1>
           <p className="text-sm text-neutral-600">
-            Latest stored reading, and the last {windowText(minutes)} of 1-second rollups before it.
+            Latest stored reading. Charts show the last {windowText(minutes)}. The slider moves that window back from the current time.
           </p>
         </div>
         <label className="flex flex-col gap-1 text-sm">
@@ -159,6 +168,7 @@ export function LiveBoard({ millId, minutes }: { millId: string; minutes: number
             <span className="ml-2 text-neutral-600">{formatClock(feedTime)}</span>
           ) : null}
         </p>
+        <AlertSound millId={live.millId} alertId={open?.id ?? null} reason={open?.reason ?? ""} />
         {open ? (
           <p className="basis-full text-sm text-red-950">
             {open.reason}{" "}
@@ -178,10 +188,19 @@ export function LiveBoard({ millId, minutes }: { millId: string; minutes: number
       <section className="rounded-lg border border-neutral-200 bg-white p-4 shadow-sm">
         <h2 className="mb-3 text-sm font-medium">All signals</h2>
         <OverlayChart
-          signals={live.signals}
+          signals={shown}
           alertFrom={shade ? Date.parse(shade.startedAt) : undefined}
           alertTo={shade?.endedAt ? Date.parse(shade.endedAt) : undefined}
         />
+        {span ? (
+          <TimeSlider
+            start={viewFrom}
+            end={viewTo}
+            maxBack={maxBack}
+            back={back}
+            onBack={setBackMs}
+          />
+        ) : null}
       </section>
 
       <ChartLegend />
@@ -189,14 +208,14 @@ export function LiveBoard({ millId, minutes }: { millId: string; minutes: number
       {focused ? (
         <FocusedChart
           signal={focused}
-          others={live.signals.filter((signal) => signal.key !== focused.key)}
+          others={shown.filter((signal) => signal.key !== focused.key)}
           shade={shade}
           onShowAll={() => setFocus(null)}
           onFocus={setFocus}
         />
       ) : (
         <div className="grid gap-4 lg:grid-cols-2">
-          {live.signals.map((signal) => (
+          {shown.map((signal) => (
             <section
               key={signal.key}
               className="rounded-lg border border-neutral-200 bg-white p-4 shadow-sm"
@@ -299,6 +318,162 @@ function FocusedChart({
       </div>
     </div>
   );
+}
+
+function AlertSound({
+  millId,
+  alertId,
+  reason,
+}: {
+  millId: string;
+  alertId: string | null;
+  reason: string;
+}) {
+  const [ready, setReady] = useState(false);
+  const [blocked, setBlocked] = useState(false);
+  const audio = useRef<AudioContext | null>(null);
+  const sounded = useRef<string | null>(null);
+
+  useEffect(() => {
+    return () => {
+      void audio.current?.close();
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!ready || !alertId || sounded.current === alertId) return;
+    sounded.current = alertId;
+    playAlarm(audio.current);
+    if (typeof Notification !== "undefined" && Notification.permission === "granted") {
+      try {
+        new Notification(`Alert on ${millId}`, { body: reason, tag: alertId });
+      } catch {
+        // The tone already played.
+      }
+    }
+  }, [ready, alertId, reason, millId]);
+
+  async function allow() {
+    try {
+      const context = audio.current ?? new AudioContext();
+      audio.current = context;
+      if (context.state === "suspended") await context.resume();
+      if (!alertId) playChime(context);
+      setReady(true);
+      setBlocked(false);
+    } catch {
+      setBlocked(true);
+      return;
+    }
+    if (typeof Notification !== "undefined" && Notification.permission === "default") {
+      await Notification.requestPermission();
+    }
+  }
+
+  if (ready) return null;
+  if (blocked) return <p className="text-sm text-neutral-600">Alert sound is blocked in the browser.</p>;
+
+  return (
+    <button
+      type="button"
+      onClick={() => void allow()}
+      className="rounded border border-neutral-300 bg-white px-3 py-1.5 text-sm"
+    >
+      Allow alert sound
+    </button>
+  );
+}
+
+function playAlarm(context: AudioContext | null) {
+  if (!context) return;
+  const now = context.currentTime;
+  beep(context, 880, now, 0.16);
+  beep(context, 660, now + 0.2, 0.28);
+}
+
+function playChime(context: AudioContext) {
+  beep(context, 660, context.currentTime, 0.12);
+}
+
+function beep(context: AudioContext, frequency: number, when: number, duration: number) {
+  const tone = context.createOscillator();
+  const level = context.createGain();
+  tone.type = "sine";
+  tone.frequency.value = frequency;
+  level.gain.setValueAtTime(0.0001, when);
+  level.gain.exponentialRampToValueAtTime(0.25, when + 0.02);
+  level.gain.exponentialRampToValueAtTime(0.0001, when + duration);
+  tone.connect(level);
+  level.connect(context.destination);
+  tone.start(when);
+  tone.stop(when + duration + 0.02);
+}
+
+function TimeSlider({
+  start,
+  end,
+  maxBack,
+  back,
+  onBack,
+}: {
+  start: number;
+  end: number;
+  maxBack: number;
+  back: number;
+  onBack: (backMs: number) => void;
+}) {
+  const atCurrent = back < 1000;
+  return (
+    <div className="mt-3 flex flex-col gap-1">
+      <input
+        type="range"
+        min={0}
+        max={Math.max(maxBack, 1)}
+        step={1000}
+        value={maxBack - back}
+        disabled={maxBack < 1000}
+        aria-label="Slide the charts back from the current time"
+        aria-valuetext={atCurrent ? "Current" : formatClock(end)}
+        onChange={(event) => onBack(maxBack - Number(event.target.value))}
+        className="w-full accent-neutral-900"
+      />
+      <p className="text-xs text-neutral-500">
+        {maxBack < 1000
+          ? "This window already reaches the start of the stored replay."
+          : "Drag left to look earlier. The right end is the current time."}
+      </p>
+      <div className="flex items-center justify-between gap-3 text-xs text-neutral-500">
+        <span>{formatClock(start)}</span>
+        {atCurrent ? (
+          <span>Current</span>
+        ) : (
+          <button type="button" onClick={() => onBack(0)} className="underline">
+            Back to current
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function signalSpan(signals: LiveSignal[]) {
+  let from = Number.POSITIVE_INFINITY;
+  let to = Number.NEGATIVE_INFINITY;
+  for (const signal of signals) {
+    const first = signal.rollups[0];
+    const last = signal.rollups.at(-1);
+    if (first && first.t < from) from = first.t;
+    if (last && last.t > to) to = last.t;
+  }
+  if (!Number.isFinite(from) || !Number.isFinite(to)) return null;
+  return { from, to };
+}
+
+function sliceSignals(signals: LiveSignal[], from: number, to: number) {
+  return signals.map((signal) => ({
+    ...signal,
+    rollups: signal.rollups.filter((point) => point.t >= from && point.t <= to),
+  }));
 }
 
 function windowText(minutes: number) {
