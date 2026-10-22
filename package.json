@@ -7,11 +7,12 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "simulate": "node --experimental-strip-types --disable-warning=ExperimentalWarning simulator/run.mts"
+    "simulate": "set NODE_ENV=development&& node --experimental-strip-types --disable-warning=ExperimentalWarning simulator/run.mts"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.7",
     "@supabase/supabase-js": "^2.118.0",
+    "lucide-react": "^1.61.0",
     "next": "16.4.2",
     "react": "19.3.0",
     "react-dom": "19.3.0",

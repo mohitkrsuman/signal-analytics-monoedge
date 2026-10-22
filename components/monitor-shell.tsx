@@ -2,6 +2,7 @@ import { Suspense, type ReactNode } from "react";
 import { connection } from "next/server";
 import { signOut } from "@/app/auth/actions";
 import { MonitorNav, MonitorNavFallback } from "@/components/monitor-nav";
+import { ReplayButton } from "@/components/replay-button";
 import { createClient } from "@/utils/supabase/server";
 
 export function MonitorShell({ children }: { children: ReactNode }) {
@@ -21,16 +22,7 @@ export function MonitorShell({ children }: { children: ReactNode }) {
           </Suspense>
         </div>
       </aside>
-      <div className="flex min-w-0 flex-1 flex-col">
-        <div className="px-6 pt-6">
-          <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-950">
-            Preview of the seeded replay, 19 Oct 2026, 10:00–10:10 UTC. These
-            charts are not stored readings. Ingest and the Query API replace this
-            preview later.
-          </p>
-        </div>
-        <main className="flex flex-1 flex-col gap-6 px-6 py-6">{children}</main>
-      </div>
+      <main className="flex min-w-0 flex-1 flex-col gap-6 px-6 py-6">{children}</main>
     </div>
   );
 }
@@ -46,6 +38,7 @@ async function SessionControls() {
 
   return (
     <div className="flex flex-col gap-3">
+      <ReplayButton />
       <p className="truncate text-sm text-neutral-600">{email ?? "Signed in"}</p>
       <form action={signOut}>
         <button
