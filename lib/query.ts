@@ -74,7 +74,18 @@ export async function getLive(
   if (edge.error) throw new Error(edge.error.message);
 
   const storedEnd = edge.data?.bucket_start ?? null;
-  const writing = recentIngestEnd(millId);
+  const marker = await supabase
+    .from("mills")
+    .select("ingest_head, updated_at")
+    .eq("id", millId)
+    .maybeSingle();
+  if (marker.error) throw new Error(marker.error.message);
+  const touched = marker.data?.updated_at ? Date.parse(marker.data.updated_at) : Number.NaN;
+  const freshHead =
+    marker.data?.ingest_head && Number.isFinite(touched) && Date.now() - touched < 15_000
+      ? marker.data.ingest_head
+      : null;
+  const writing = freshHead ?? recentIngestEnd(millId);
   const endBucket =
     writing && storedEnd && Date.parse(writing) <= Date.parse(storedEnd) ? writing : storedEnd;
 
