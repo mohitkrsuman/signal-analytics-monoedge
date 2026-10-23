@@ -118,21 +118,21 @@ export function LiveBoard({ millId, minutes }: { millId: string; minutes: number
           <select
             aria-label="Mill"
             defaultValue={live.millId}
-            className="rounded border border-neutral-300 bg-white px-3 py-2"
+            className="min-h-11 w-full rounded border border-neutral-300 bg-white px-3 py-2 text-base md:w-auto md:text-sm"
           >
             <option value={live.millId}>{live.millId}</option>
           </select>
         </label>
       </div>
 
-      <div className="flex flex-wrap gap-2" role="group" aria-label="Chart window">
+      <div className="flex gap-2 overflow-x-auto pb-1" role="group" aria-label="Chart window">
         {LIVE_WINDOW_MINUTES.map((value) => (
           <Link
             key={value}
             href={value === DEFAULT_LIVE_MINUTES ? "/" : `/?minutes=${value}`}
             scroll={false}
             aria-current={value === minutes ? "page" : undefined}
-            className={`rounded border px-3 py-1.5 text-sm ${
+            className={`inline-flex min-h-11 shrink-0 items-center rounded border px-3 py-2 text-sm md:min-h-0 ${
               value === minutes
                 ? "border-neutral-900 bg-neutral-900 text-white"
                 : "border-neutral-300 bg-white"
@@ -179,7 +179,7 @@ export function LiveBoard({ millId, minutes }: { millId: string; minutes: number
             </Link>
           </p>
         ) : latest ? (
-          <Link href={`/incidents/${latest.id}`} className="text-sm underline">
+          <Link href={`/incidents/${latest.id}`} className="inline-flex min-h-11 items-center text-sm underline md:min-h-0">
             Latest incident, {formatClock(Date.parse(latest.startedAt))}
           </Link>
         ) : (
@@ -187,7 +187,7 @@ export function LiveBoard({ millId, minutes }: { millId: string; minutes: number
         )}
       </section>
 
-      <section className="rounded-lg border border-neutral-200 bg-white p-4 shadow-sm">
+      <section className="rounded-lg border border-neutral-200 bg-white p-3 shadow-sm sm:p-4">
         <h2 className="mb-3 text-sm font-medium">All signals</h2>
         <OverlayChart
           signals={shown}
@@ -220,9 +220,9 @@ export function LiveBoard({ millId, minutes }: { millId: string; minutes: number
           {shown.map((signal) => (
             <section
               key={signal.key}
-              className="rounded-lg border border-neutral-200 bg-white p-4 shadow-sm"
+              className="rounded-lg border border-neutral-200 bg-white p-3 shadow-sm sm:p-4"
             >
-              <div className="mb-2 flex items-baseline justify-between gap-3">
+              <div className="mb-2 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
                 <h2 className="flex items-center gap-1.5 text-sm font-medium">
                   <span style={{ color: signalColor(signal.key) }}>
                     <SignalIcon signal={signal.key} />
@@ -237,7 +237,7 @@ export function LiveBoard({ millId, minutes }: { millId: string; minutes: number
                   <button
                     type="button"
                     onClick={() => setFocus(signal.key)}
-                    className="text-sm underline"
+                    className="inline-flex min-h-11 items-center text-sm underline md:min-h-0"
                   >
                     Expand
                   </button>
@@ -273,9 +273,9 @@ function FocusedChart({
 }) {
   return (
     <div className="flex flex-col gap-4">
-      <section className="rounded-lg border border-neutral-200 bg-white p-4 shadow-sm">
-        <div className="mb-2 flex items-baseline justify-between gap-3">
-          <h2 className="flex items-center gap-1.5 text-sm font-medium">
+      <section className="rounded-lg border border-neutral-200 bg-white p-3 shadow-sm sm:p-4">
+        <div className="mb-2 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+          <h2 className="flex min-w-0 items-center gap-1.5 text-sm font-medium">
             <span style={{ color: signalColor(signal.key) }}>
               <SignalIcon signal={signal.key} />
             </span>
@@ -286,7 +286,7 @@ function FocusedChart({
               {signal.value === null ? "—" : formatValue(signal.value)}{" "}
               <span className="text-sm font-normal text-neutral-500">{signal.unit}</span>
             </p>
-            <button type="button" onClick={onShowAll} className="text-sm underline">
+            <button type="button" onClick={onShowAll} className="inline-flex min-h-11 items-center text-sm underline md:min-h-0">
               Show all
             </button>
           </div>
@@ -306,7 +306,7 @@ function FocusedChart({
             key={item.key}
             type="button"
             onClick={() => onFocus(item.key)}
-            className="inline-flex items-center gap-1.5 rounded border border-neutral-300 bg-white px-3 py-1.5 text-sm"
+            className="inline-flex min-h-11 items-center gap-1.5 rounded border border-neutral-300 bg-white px-3 py-2 text-sm md:min-h-0 md:py-1.5"
           >
             <span style={{ color: signalColor(item.key) }}>
               <SignalIcon signal={item.key} />
@@ -461,7 +461,7 @@ function AlertSound({
     <button
       type="button"
       onClick={allow}
-      className="rounded border border-neutral-300 bg-white px-3 py-1.5 text-sm"
+        className="min-h-11 rounded border border-neutral-300 bg-white px-3 py-2 text-sm"
     >
       {blocked ? "Alert sound is blocked. Try again" : "Allow alert sound"}
     </button>
@@ -513,7 +513,7 @@ function TimeSlider({
         aria-label="Slide the charts back from the current time"
         aria-valuetext={atCurrent ? "Current" : formatClock(end)}
         onChange={(event) => onBack(maxBack - Number(event.target.value))}
-        className="w-full accent-neutral-900"
+        className="h-11 w-full accent-neutral-900"
       />
       <p className="text-xs text-neutral-500">
         {maxBack < 1000
@@ -525,7 +525,7 @@ function TimeSlider({
         {atCurrent ? (
           <span>Current</span>
         ) : (
-          <button type="button" onClick={() => onBack(0)} className="underline">
+          <button type="button" onClick={() => onBack(0)} className="inline-flex min-h-11 items-center underline md:min-h-0">
             Back to current
           </button>
         )}

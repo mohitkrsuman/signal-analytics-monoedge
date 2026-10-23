@@ -86,7 +86,7 @@ export function OverlayChart({
                     : [...current, signal.key],
                 )
               }
-              className={`inline-flex items-center gap-1.5 rounded border px-2.5 py-1 text-sm ${
+              className={`inline-flex min-h-11 items-center gap-1.5 rounded border px-2.5 py-2 text-sm md:min-h-0 md:py-1 ${
                 off ? "border-neutral-200 text-neutral-400" : "border-neutral-300 bg-white text-neutral-900"
               }`}
             >
@@ -106,16 +106,16 @@ export function OverlayChart({
       {visible.length === 0 ? (
         <p className="text-sm text-neutral-600">Choose a signal to draw its line.</p>
       ) : (
-        <div className="h-72 w-full min-w-0" role="img" aria-label="All signals compared with their own starting level">
-          <ResponsiveContainer width="100%" height="100%" initialDimension={{ width: 640, height: 288 }}>
-            <LineChart data={rows} margin={{ top: 8, right: 8, left: 0, bottom: 4 }}>
+        <div className="h-56 w-full min-w-0 sm:h-72" role="img" aria-label="All signals compared with their own starting level">
+          <ResponsiveContainer width="100%" height="100%" initialDimension={{ width: 320, height: 224 }}>
+            <LineChart data={rows} margin={{ top: 8, right: 12, left: 0, bottom: 4 }}>
               <CartesianGrid vertical={false} stroke="#f5f5f4" />
               <XAxis
                 dataKey="t"
                 type="number"
                 domain={["dataMin", "dataMax"]}
                 ticks={[xMin, xMax]}
-                tickFormatter={(value) => formatClock(Number(value))}
+                tickFormatter={(value) => formatClock(Number(value)).replace(" UTC", "")}
                 tick={{ fill: "#57534e", fontSize: 11 }}
                 tickMargin={8}
                 tickLine={false}
@@ -123,7 +123,7 @@ export function OverlayChart({
               />
               <YAxis
                 domain={[yMin, yMax]}
-                width={48}
+                width={44}
                 tickCount={4}
                 tickFormatter={(value) => `${Math.round(Number(value))}`}
                 tick={{ fill: "#57534e", fontSize: 11 }}
@@ -133,6 +133,7 @@ export function OverlayChart({
               />
               <Tooltip
                 cursor={{ stroke: "#a8a29e", strokeDasharray: "3 3" }}
+                wrapperStyle={{ maxWidth: "min(18rem, calc(100vw - 2.5rem))", zIndex: 20 }}
                 content={(props) => (
                   <OverlayTooltip
                     active={props.active}
@@ -238,13 +239,13 @@ function OverlayTooltip({
   if (!active || !row) return null;
   const values = raw.get(row.t) ?? {};
   return (
-    <div className="rounded-md border border-neutral-200 bg-white px-3 py-2 text-xs shadow-sm">
+    <div className="max-w-full rounded-md border border-neutral-200 bg-white px-3 py-2 text-xs shadow-sm">
       <p className="font-medium text-neutral-900">{formatClock(row.t)}</p>
       <ul className="mt-1 flex flex-col gap-0.5">
         {signals
           .filter((signal) => !hidden.includes(signal.key) && values[signal.key] !== undefined)
           .map((signal) => (
-            <li key={signal.key} className="flex items-center gap-1.5 text-neutral-800">
+            <li key={signal.key} className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-neutral-800">
               <span style={{ color: signalColor(signal.key) }}>
                 <SignalIcon signal={signal.key} className="size-3.5" />
               </span>

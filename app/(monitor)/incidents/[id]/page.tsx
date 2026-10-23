@@ -29,18 +29,18 @@ async function Incident({ params }: { params: Promise<{ id: string }> }) {
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <Link href="/incidents" className="text-sm underline">
+        <Link href="/incidents" className="inline-flex min-h-11 items-center text-sm underline md:min-h-0">
           All incidents
         </Link>
         <h1 className="mt-2 text-2xl font-semibold">Incident on {alert.millId}</h1>
-        <p className="mt-1 text-sm text-neutral-600">
+        <p className="mt-1 text-sm break-words text-neutral-600">
           {formatClock(started)}
           {alert.endedAt ? ` to ${formatClock(ended)}` : " · open"} · {alert.severity} ·{" "}
           {alert.detector} detector · score {alert.score}
         </p>
       </div>
 
-      <section className="rounded-lg border border-neutral-200 bg-white p-4 shadow-sm">
+      <section className="rounded-lg border border-neutral-200 bg-white p-3 shadow-sm sm:p-4">
         <h2 className="text-sm font-medium">Reason</h2>
         <p className="mt-2 text-sm">{alert.reason}</p>
         <ul className="mt-3 flex flex-col gap-1 text-sm text-neutral-700">
@@ -50,7 +50,7 @@ async function Incident({ params }: { params: Promise<{ id: string }> }) {
         </ul>
       </section>
 
-      <section className="rounded-lg border border-neutral-200 bg-white p-4 shadow-sm">
+      <section className="rounded-lg border border-neutral-200 bg-white p-3 shadow-sm sm:p-4">
         <h2 className="mb-3 text-sm font-medium">All affected signals</h2>
         <OverlayChart signals={series} alertFrom={started} alertTo={ended} />
       </section>
@@ -61,7 +61,7 @@ async function Incident({ params }: { params: Promise<{ id: string }> }) {
         {series.map((signal) => (
           <section
             key={signal.key}
-            className="rounded-lg border border-neutral-200 bg-white p-4 shadow-sm"
+            className="rounded-lg border border-neutral-200 bg-white p-3 shadow-sm sm:p-4"
           >
             <h2 className="mb-2 flex items-center gap-1.5 text-sm font-medium">
               <span style={{ color: signalColor(signal.key) }}>

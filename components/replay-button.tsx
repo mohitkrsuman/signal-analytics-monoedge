@@ -67,7 +67,7 @@ export function ReplayButton() {
         type="button"
         onClick={run}
         disabled={running}
-        className="w-full cursor-pointer rounded-md bg-neutral-900 px-3 py-1.5 text-sm text-white disabled:opacity-60"
+        className="min-h-11 w-full cursor-pointer rounded-md bg-neutral-900 px-3 py-2 text-sm text-white disabled:opacity-60 md:min-h-0 md:py-1.5"
       >
         {running && clock ? `Replaying ${clock}` : "Run replay"}
       </button>

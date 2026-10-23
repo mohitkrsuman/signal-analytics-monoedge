@@ -36,7 +36,7 @@ async function Incidents() {
             <li key={alert.id}>
               <Link
                 href={`/incidents/${alert.id}`}
-                className="block rounded-lg border border-neutral-200 bg-white p-4 shadow-sm hover:border-neutral-400"
+                className="block rounded-lg border border-neutral-200 bg-white p-3 shadow-sm hover:border-neutral-400 sm:p-4"
               >
                 <div className="flex flex-wrap items-baseline justify-between gap-2">
                   <p className="text-sm font-medium">
@@ -53,12 +53,12 @@ async function Incidents() {
                     {alert.severity}
                   </p>
                 </div>
-                <p className="mt-2 text-sm text-neutral-600">
+                <p className="mt-2 text-sm break-words text-neutral-600">
                   {alert.signals
                     .map((key) => signalLabel(mill?.signals ?? [], key))
                     .join(", ")}
                 </p>
-                <p className="mt-2 text-sm">{alert.reason}</p>
+                <p className="mt-2 text-sm break-words">{alert.reason}</p>
               </Link>
             </li>
           ))}

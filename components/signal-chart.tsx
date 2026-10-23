@@ -71,23 +71,23 @@ export function SignalChart({
 
   return (
     <div
-      className={`w-full min-w-0 ${tall ? "h-[70vh]" : allowZoom ? "h-80" : "h-48"}`}
+      className={`w-full min-w-0 ${tall ? "h-[50vh] min-h-64 md:h-[70vh]" : allowZoom ? "h-64 md:h-80" : "h-44 md:h-48"}`}
       role="img"
       aria-label={label}
     >
       <ResponsiveContainer
         width="100%"
         height="100%"
-        initialDimension={{ width: 640, height: tall ? 640 : allowZoom ? 320 : 192 }}
+        initialDimension={{ width: 320, height: tall ? 420 : allowZoom ? 256 : 176 }}
       >
-        <ComposedChart data={data} margin={{ top: 8, right: 8, left: 0, bottom: 4 }}>
+        <ComposedChart data={data} margin={{ top: 8, right: 12, left: 0, bottom: 4 }}>
           <CartesianGrid vertical={false} stroke="#f5f5f4" />
           <XAxis
             dataKey="t"
             type="number"
             domain={["dataMin", "dataMax"]}
             ticks={[xMin, xMax]}
-            tickFormatter={(value) => formatClock(Number(value))}
+            tickFormatter={(value) => formatClock(Number(value)).replace(" UTC", "")}
             tick={{ fill: "#57534e", fontSize: 11 }}
             tickMargin={8}
             tickLine={false}
@@ -95,7 +95,7 @@ export function SignalChart({
           />
           <YAxis
             domain={[yMin, yMax]}
-            width={48}
+            width={44}
             tickCount={4}
             tickFormatter={(value) => formatValue(Number(value))}
             tick={{ fill: "#57534e", fontSize: 11 }}
@@ -105,6 +105,7 @@ export function SignalChart({
           />
           <Tooltip
             cursor={{ stroke: "#a8a29e", strokeDasharray: "3 3" }}
+            wrapperStyle={{ maxWidth: "min(18rem, calc(100vw - 2.5rem))", zIndex: 20 }}
             content={(props) => (
               <ChartTooltip
                 active={props.active}
@@ -143,10 +144,10 @@ export function SignalChart({
           {allowZoom ? (
             <Brush
               dataKey="t"
-              height={28}
+              height={36}
               stroke="#d6d3d1"
               fill="#fafaf9"
-              travellerWidth={8}
+              travellerWidth={16}
               tickFormatter={(value) => formatClock(Number(value)).replace(" UTC", "")}
             />
           ) : null}
@@ -170,7 +171,7 @@ function ChartTooltip({
 
   const suffix = unit ? ` ${unit}` : "";
   return (
-    <div className="rounded-md border border-neutral-200 bg-white px-3 py-2 text-xs shadow-sm">
+    <div className="max-w-full rounded-md border border-neutral-200 bg-white px-3 py-2 text-xs shadow-sm">
       <p className="font-medium text-neutral-900">{formatClock(row.t)}</p>
       <p className="mt-1 text-neutral-800">
         Average {formatValue(row.avg)}
@@ -188,7 +189,7 @@ function ChartTooltip({
 export function ChartLegend() {
   return (
     <p className="text-xs text-neutral-500">
-      Hover a point for that second. The line is the average and the pale fill
+      Touch or hover a point for that second. The line is the average and the pale fill
       is the min to max band. The red band is the cobble alert. The load step
       is the level change and stays unmarked.
     </p>
