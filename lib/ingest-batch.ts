@@ -47,6 +47,11 @@ export async function saveBatch(body: {
   const from = new Date(Math.min(...times)).toISOString();
   const to = new Date(Math.max(...times)).toISOString();
   noteIngest(mill.id, to);
+  const marked = await admin
+    .from("mills")
+    .update({ ingest_head: to, updated_at: new Date().toISOString() })
+    .eq("id", mill.id);
+  if (marked.error) return { error: marked.error.message, status: 500 };
   await detect(mill.id, from, to);
 
   return { count: samples.length };
