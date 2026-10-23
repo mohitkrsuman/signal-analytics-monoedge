@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { Pause, Play } from "lucide-react";
 import { formatClock } from "@/lib/monitor";
 
 const REPLAY_CLOCK_EVENT = "mill-replay-clock";
@@ -67,8 +68,9 @@ export function ReplayButton() {
         type="button"
         onClick={run}
         disabled={running}
-        className="min-h-11 w-full cursor-pointer rounded-md bg-neutral-900 px-3 py-2 text-sm text-white disabled:opacity-60 md:min-h-0 md:py-1.5"
+        className="flex min-h-11 w-full cursor-pointer items-center justify-center gap-2 rounded-md bg-neutral-900 px-3 py-2 text-sm text-white disabled:opacity-60 md:min-h-0 md:py-1.5"
       >
+        {running ? <Pause aria-hidden="true" size={16} /> : <Play aria-hidden="true" size={16} />}
         {running && clock ? `Replaying ${clock}` : "Run replay"}
       </button>
       {error ? <p className="text-xs text-red-800">{error}</p> : null}
