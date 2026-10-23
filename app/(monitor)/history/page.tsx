@@ -1,5 +1,6 @@
 import { Suspense } from "react";
 import Link from "next/link";
+import { PageLoader } from "@/components/page-loader";
 import { SignalIcon, signalColor } from "@/components/signal-mark";
 import { ChartLegend, SignalChart } from "@/components/signal-chart";
 import {
@@ -17,7 +18,7 @@ export default function HistoryPage({
   searchParams: Promise<{ signal?: string | string[]; range?: string | string[] }>;
 }) {
   return (
-    <Suspense fallback={<p className="text-sm text-neutral-500">Loading history…</p>}>
+    <Suspense fallback={<PageLoader label="Loading history" />}>
       <History searchParams={searchParams} />
     </Suspense>
   );

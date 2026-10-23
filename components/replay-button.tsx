@@ -3,6 +3,8 @@
 import { useEffect, useRef, useState } from "react";
 import { formatClock } from "@/lib/monitor";
 
+const REPLAY_CLOCK_EVENT = "mill-replay-clock";
+
 export function ReplayButton() {
   const [running, setRunning] = useState(false);
   const [at, setAt] = useState<string | null>(null);
@@ -45,7 +47,10 @@ export function ReplayButton() {
       }
       total = body.total;
       index = body.index + 1;
-      setAt(body.at);
+      if (typeof body.at === "string") {
+        setAt(body.at);
+        window.dispatchEvent(new CustomEvent(REPLAY_CLOCK_EVENT, { detail: body.at }));
+      }
     }
 
     if (stopped.current) return;

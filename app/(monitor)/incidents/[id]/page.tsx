@@ -2,6 +2,7 @@ import { Suspense } from "react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { OverlayChart } from "@/components/overlay-chart";
+import { PageLoader } from "@/components/page-loader";
 import { SignalIcon, signalColor } from "@/components/signal-mark";
 import { ChartLegend, SignalChart } from "@/components/signal-chart";
 import { formatClock, formatValue, type SignalEvidence } from "@/lib/monitor";
@@ -9,7 +10,7 @@ import { getAlert, getSessionClient } from "@/lib/query";
 
 export default function IncidentPage({ params }: { params: Promise<{ id: string }> }) {
   return (
-    <Suspense fallback={<p className="text-sm text-neutral-500">Loading incident…</p>}>
+    <Suspense fallback={<PageLoader label="Loading incident" />}>
       <Incident params={params} />
     </Suspense>
   );

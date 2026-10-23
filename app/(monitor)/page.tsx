@@ -1,5 +1,6 @@
 import { Suspense } from "react";
 import { LiveBoard } from "@/components/live-board";
+import { PageLoader } from "@/components/page-loader";
 import { liveWindowMinutes, MILL_ID } from "@/lib/monitor";
 
 export default function LivePage({
@@ -8,7 +9,7 @@ export default function LivePage({
   searchParams: Promise<{ minutes?: string | string[] }>;
 }) {
   return (
-    <Suspense fallback={<p className="text-sm text-neutral-500">Loading live mill…</p>}>
+    <Suspense fallback={<PageLoader label="Loading live mill" />}>
       <Live searchParams={searchParams} />
     </Suspense>
   );

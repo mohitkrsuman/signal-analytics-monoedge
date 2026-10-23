@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { OverlayChart } from "@/components/overlay-chart";
+import { PageLoader } from "@/components/page-loader";
 import { SignalIcon, signalColor } from "@/components/signal-mark";
 import { ChartLegend, SignalChart } from "@/components/signal-chart";
 import {
@@ -13,6 +14,7 @@ import {
   liveFromWire,
   mergeLive,
   overlappingAlert,
+  type AlertSummary,
   type LiveSignal,
   type LiveSnapshot,
 } from "@/lib/monitor";
@@ -87,7 +89,7 @@ export function LiveBoard({ millId, minutes }: { millId: string; minutes: number
   }, [millId]);
 
   if (error) return <p className="text-sm text-neutral-600">{error}</p>;
-  if (!live) return <p className="text-sm text-neutral-500">Loading live mill…</p>;
+  if (!live) return <PageLoader label="Loading live mill" />;
 
   const span = signalSpan(live.signals);
   const viewMs = minutes * 60 * 1000;
@@ -168,7 +170,7 @@ export function LiveBoard({ millId, minutes }: { millId: string; minutes: number
             <span className="ml-2 text-neutral-600">{formatClock(feedTime)}</span>
           ) : null}
         </p>
-        <AlertSound millId={live.millId} alertId={open?.id ?? null} reason={open?.reason ?? ""} />
+        <AlertSound millId={live.millId} openId={open?.id ?? null} alerts={live.alerts} />
         {open ? (
           <p className="basis-full text-sm text-red-950">
             {open.reason}{" "}
@@ -320,93 +322,169 @@ function FocusedChart({
   );
 }
 
+const REPLAY_CLOCK_EVENT = "mill-replay-clock";
+
 function AlertSound({
   millId,
-  alertId,
-  reason,
+  openId,
+  alerts,
 }: {
   millId: string;
-  alertId: string | null;
-  reason: string;
+  openId: string | null;
+  alerts: AlertSummary[];
 }) {
   const [ready, setReady] = useState(false);
   const [blocked, setBlocked] = useState(false);
-  const audio = useRef<AudioContext | null>(null);
-  const sounded = useRef<string | null>(null);
+  const sounded = useRef(new Set<string>());
+  const pending = useRef<string | null>(null);
+  const seen = useRef<Set<string> | null>(null);
+  const openSeen = useRef<Set<string> | null>(null);
+  const simAt = useRef<number | null>(null);
+  const replayFrom = useRef<number | null>(null);
 
   useEffect(() => {
-    return () => {
-      void audio.current?.close();
-    };
-  }, []);
-
-  useEffect(() => {
-    if (!ready || !alertId || sounded.current === alertId) return;
-    sounded.current = alertId;
-    playAlarm(audio.current);
-    if (typeof Notification !== "undefined" && Notification.permission === "granted") {
-      try {
-        new Notification(`Alert on ${millId}`, { body: reason, tag: alertId });
-      } catch {
-        // The tone already played.
-      }
-    }
-  }, [ready, alertId, reason, millId]);
-
-  async function allow() {
-    try {
-      const context = audio.current ?? new AudioContext();
-      audio.current = context;
-      if (context.state === "suspended") await context.resume();
-      if (!alertId) playChime(context);
-      setReady(true);
-      setBlocked(false);
-    } catch {
+    if (typeof Notification === "undefined") {
       setBlocked(true);
       return;
     }
-    if (typeof Notification !== "undefined" && Notification.permission === "default") {
-      await Notification.requestPermission();
+    if (Notification.permission === "granted") setReady(true);
+    if (Notification.permission === "denied") setBlocked(true);
+  }, []);
+
+  useEffect(() => {
+    function announce(alert: AlertSummary | undefined) {
+      if (!alert) return;
+      const key = soundKey(alert);
+      if (sounded.current.has(key)) return;
+      if (!ready) {
+        pending.current = key;
+        return;
+      }
+      sounded.current.add(key);
+      pending.current = null;
+      if (!systemAlert(millId, alert.reason, alert.id)) {
+        sounded.current.delete(key);
+        pending.current = key;
+        setReady(false);
+        setBlocked(true);
+      }
     }
+
+    const waiting = alerts.find((alert) => soundKey(alert) === pending.current);
+    if (waiting && ready) announce(waiting);
+
+    if (seen.current === null || openSeen.current === null) {
+      seen.current = new Set(alerts.map((alert) => alert.id));
+      openSeen.current = new Set(alerts.filter((alert) => alert.endedAt === null).map((alert) => alert.id));
+      return;
+    }
+
+    const arrived = alerts.find((alert) => !seen.current?.has(alert.id));
+    const reopened = alerts.find((alert) => alert.endedAt === null && !openSeen.current?.has(alert.id));
+    seen.current = new Set(alerts.map((alert) => alert.id));
+    openSeen.current = new Set(alerts.filter((alert) => alert.endedAt === null).map((alert) => alert.id));
+    announce(arrived ?? reopened);
+
+    const sim = simAt.current;
+    const from = replayFrom.current;
+    if (sim === null || from === null) return;
+    for (const alert of alerts) {
+      if (inReplay(alert, from, sim)) announce(alert);
+    }
+  }, [alerts, ready, millId]);
+
+  useEffect(() => {
+    function onClock(event: Event) {
+      const at = Date.parse((event as CustomEvent<string>).detail);
+      if (!Number.isFinite(at)) return;
+      const previous = simAt.current;
+      if (previous !== null && at + 2000 < previous) {
+        sounded.current.clear();
+        replayFrom.current = at;
+      }
+      simAt.current = at;
+      replayFrom.current ??= at;
+      const from = replayFrom.current;
+      for (const alert of alerts) {
+        if (!inReplay(alert, from, at) || sounded.current.has(soundKey(alert))) continue;
+        if (!ready) {
+          pending.current = soundKey(alert);
+          continue;
+        }
+        sounded.current.add(soundKey(alert));
+        pending.current = null;
+        if (!systemAlert(millId, alert.reason, alert.id)) {
+          sounded.current.delete(soundKey(alert));
+          pending.current = soundKey(alert);
+          setReady(false);
+          setBlocked(true);
+        }
+      }
+    }
+
+    window.addEventListener(REPLAY_CLOCK_EVENT, onClock);
+    return () => window.removeEventListener(REPLAY_CLOCK_EVENT, onClock);
+  }, [alerts, ready, millId]);
+
+  function allow() {
+    if (typeof Notification === "undefined") {
+      setBlocked(true);
+      return;
+    }
+    void Notification.requestPermission().then((permission) => {
+      if (permission !== "granted") {
+        setBlocked(true);
+        return;
+      }
+      const open = openId ? alerts.find((alert) => alert.id === openId) : undefined;
+      const waiting = alerts.find((alert) => soundKey(alert) === pending.current);
+      const hit = waiting ?? (open && !sounded.current.has(soundKey(open)) ? open : undefined);
+      const played = hit
+        ? systemAlert(millId, hit.reason, hit.id)
+        : systemAlert(millId, "The system sound will play for a new incident.", "alert-sound-on");
+      if (!played) {
+        setBlocked(true);
+        return;
+      }
+      if (hit) {
+        sounded.current.add(soundKey(hit));
+        pending.current = null;
+      }
+      setReady(true);
+      setBlocked(false);
+    });
   }
 
   if (ready) return null;
-  if (blocked) return <p className="text-sm text-neutral-600">Alert sound is blocked in the browser.</p>;
 
   return (
     <button
       type="button"
-      onClick={() => void allow()}
+      onClick={allow}
       className="rounded border border-neutral-300 bg-white px-3 py-1.5 text-sm"
     >
-      Allow alert sound
+      {blocked ? "Alert sound is blocked. Try again" : "Allow alert sound"}
     </button>
   );
 }
 
-function playAlarm(context: AudioContext | null) {
-  if (!context) return;
-  const now = context.currentTime;
-  beep(context, 880, now, 0.16);
-  beep(context, 660, now + 0.2, 0.28);
+function inReplay(alert: AlertSummary, from: number, at: number) {
+  const start = Date.parse(alert.startedAt);
+  return start >= from && at >= start;
 }
 
-function playChime(context: AudioContext) {
-  beep(context, 660, context.currentTime, 0.12);
+function soundKey(alert: AlertSummary) {
+  return `${alert.id}@${alert.startedAt}`;
 }
 
-function beep(context: AudioContext, frequency: number, when: number, duration: number) {
-  const tone = context.createOscillator();
-  const level = context.createGain();
-  tone.type = "sine";
-  tone.frequency.value = frequency;
-  level.gain.setValueAtTime(0.0001, when);
-  level.gain.exponentialRampToValueAtTime(0.25, when + 0.02);
-  level.gain.exponentialRampToValueAtTime(0.0001, when + duration);
-  tone.connect(level);
-  level.connect(context.destination);
-  tone.start(when);
-  tone.stop(when + duration + 0.02);
+function systemAlert(millId: string, body: string, tag: string) {
+  if (typeof Notification === "undefined" || Notification.permission !== "granted") return false;
+  try {
+    new Notification(`Alert on ${millId}`, { body, tag, renotify: true } as NotificationOptions);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 function TimeSlider({

@@ -1,11 +1,12 @@
 import { Suspense } from "react";
 import Link from "next/link";
+import { PageLoader } from "@/components/page-loader";
 import { type AlertSummary, formatClock, MILL_ID, signalLabel } from "@/lib/monitor";
 import { getMills, getSessionClient, listAlerts } from "@/lib/query";
 
 export default function IncidentsPage() {
   return (
-    <Suspense fallback={<p className="text-sm text-neutral-500">Loading incidents…</p>}>
+    <Suspense fallback={<PageLoader label="Loading incidents" />}>
       <Incidents />
     </Suspense>
   );
