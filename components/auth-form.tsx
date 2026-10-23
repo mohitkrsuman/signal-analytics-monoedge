@@ -50,7 +50,7 @@ export function AuthForm({ mode }: AuthFormProps) {
             type="email"
             autoComplete="email"
             required
-            className="rounded border border-neutral-300 px-3 py-2"
+            className="min-h-11 rounded border border-neutral-300 px-3 py-2 text-base"
           />
         </label>
         <label className="flex flex-col gap-1 text-sm">
@@ -60,7 +60,7 @@ export function AuthForm({ mode }: AuthFormProps) {
             type="password"
             autoComplete={mode === "sign-in" ? "current-password" : "new-password"}
             required
-            className="rounded border border-neutral-300 px-3 py-2"
+            className="min-h-11 rounded border border-neutral-300 px-3 py-2 text-base"
           />
         </label>
         {state?.error ? (
@@ -76,12 +76,12 @@ export function AuthForm({ mode }: AuthFormProps) {
         <button
           type="submit"
           disabled={pending}
-          className="rounded bg-neutral-900 px-3 py-2 text-sm text-white disabled:opacity-60"
+          className="min-h-11 rounded bg-neutral-900 px-3 py-2 text-sm text-white disabled:opacity-60"
         >
           {pending ? "Please wait…" : form.submitLabel}
         </button>
       </form>
-      <Link href={form.alternateHref} className="text-sm underline">
+      <Link href={form.alternateHref} className="inline-flex min-h-11 items-center text-sm underline">
         {form.alternateLabel}
       </Link>
     </main>

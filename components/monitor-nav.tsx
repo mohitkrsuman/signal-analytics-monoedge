@@ -10,7 +10,7 @@ const LINKS = [
 ];
 
 function linkClass(active: boolean) {
-  return `rounded-md px-3 py-2 text-sm ${
+  return `shrink-0 rounded-md px-3 py-2.5 text-sm whitespace-nowrap md:py-2 ${
     active
       ? "bg-neutral-900 font-medium text-white"
       : "text-neutral-700 hover:bg-neutral-100"
@@ -19,7 +19,7 @@ function linkClass(active: boolean) {
 
 export function MonitorNavFallback() {
   return (
-    <nav aria-label="Monitor" className="flex gap-1 overflow-x-auto px-3 pb-3 md:flex-col md:pb-0">
+    <nav aria-label="Monitor" className="flex gap-1 overflow-x-auto px-3 pb-3 md:flex-col md:overflow-visible md:pb-0">
       <p className="hidden px-3 pb-1 text-xs font-medium tracking-wide text-neutral-400 uppercase md:block">
         Monitor
       </p>
@@ -36,7 +36,7 @@ export function MonitorNav() {
   const pathname = usePathname();
 
   return (
-    <nav aria-label="Monitor" className="flex gap-1 overflow-x-auto px-3 pb-3 md:flex-col md:pb-0">
+    <nav aria-label="Monitor" className="flex gap-1 overflow-x-auto px-3 pb-3 md:flex-col md:overflow-visible md:pb-0">
       <p className="hidden px-3 pb-1 text-xs font-medium tracking-wide text-neutral-400 uppercase md:block">
         Monitor
       </p>

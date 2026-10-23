@@ -1,5 +1,6 @@
 import { Suspense } from "react";
 import Link from "next/link";
+import { PageLoader } from "@/components/page-loader";
 import { SignalIcon, signalColor } from "@/components/signal-mark";
 import { ChartLegend, SignalChart } from "@/components/signal-chart";
 import {
@@ -17,7 +18,7 @@ export default function HistoryPage({
   searchParams: Promise<{ signal?: string | string[]; range?: string | string[] }>;
 }) {
   return (
-    <Suspense fallback={<p className="text-sm text-neutral-500">Loading history…</p>}>
+    <Suspense fallback={<PageLoader label="Loading history" />}>
       <History searchParams={searchParams} />
     </Suspense>
   );
@@ -65,7 +66,7 @@ async function History({
               href={historyHref(item.key, rangeKey)}
               prefetch
               aria-current={item.key === signal?.key ? "page" : undefined}
-              className={`inline-flex items-center gap-1.5 rounded border px-3 py-1.5 text-sm ${
+              className={`inline-flex min-h-11 items-center gap-1.5 rounded border px-3 py-2 text-sm md:min-h-0 md:py-1.5 ${
                 item.key === signal?.key
                   ? "border-neutral-900 bg-neutral-900 text-white"
                   : "border-neutral-300 bg-white"
@@ -85,7 +86,7 @@ async function History({
               href={historyHref(signal?.key ?? "motor_current", key)}
               prefetch
               aria-current={key === rangeKey ? "page" : undefined}
-              className={`rounded border px-3 py-1.5 text-sm ${
+              className={`inline-flex min-h-11 items-center rounded border px-3 py-2 text-sm md:min-h-0 md:py-1.5 ${
                 key === rangeKey
                   ? "border-neutral-900 bg-neutral-900 text-white"
                   : "border-neutral-300 bg-white"
@@ -97,7 +98,7 @@ async function History({
         </div>
       </div>
 
-      <section className="rounded-lg border border-neutral-200 bg-white p-4 shadow-sm">
+      <section className="rounded-lg border border-neutral-200 bg-white p-3 shadow-sm sm:p-4">
         <h2 className="mb-2 flex items-center gap-1.5 text-sm font-medium">
           {signal ? (
             <span style={{ color: signalColor(signal.key) }}>

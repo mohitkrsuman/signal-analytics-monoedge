@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { OverlayChart } from "@/components/overlay-chart";
+import { PageLoader } from "@/components/page-loader";
 import { SignalIcon, signalColor } from "@/components/signal-mark";
 import { ChartLegend, SignalChart } from "@/components/signal-chart";
 import {
@@ -13,6 +14,7 @@ import {
   liveFromWire,
   mergeLive,
   overlappingAlert,
+  type AlertSummary,
   type LiveSignal,
   type LiveSnapshot,
 } from "@/lib/monitor";
@@ -87,7 +89,7 @@ export function LiveBoard({ millId, minutes }: { millId: string; minutes: number
   }, [millId]);
 
   if (error) return <p className="text-sm text-neutral-600">{error}</p>;
-  if (!live) return <p className="text-sm text-neutral-500">Loading live mill…</p>;
+  if (!live) return <PageLoader label="Loading live mill" />;
 
   const span = signalSpan(live.signals);
   const viewMs = minutes * 60 * 1000;
@@ -116,21 +118,21 @@ export function LiveBoard({ millId, minutes }: { millId: string; minutes: number
           <select
             aria-label="Mill"
             defaultValue={live.millId}
-            className="rounded border border-neutral-300 bg-white px-3 py-2"
+            className="min-h-11 w-full rounded border border-neutral-300 bg-white px-3 py-2 text-base md:w-auto md:text-sm"
           >
             <option value={live.millId}>{live.millId}</option>
           </select>
         </label>
       </div>
 
-      <div className="flex flex-wrap gap-2" role="group" aria-label="Chart window">
+      <div className="flex gap-2 overflow-x-auto pb-1" role="group" aria-label="Chart window">
         {LIVE_WINDOW_MINUTES.map((value) => (
           <Link
             key={value}
             href={value === DEFAULT_LIVE_MINUTES ? "/" : `/?minutes=${value}`}
             scroll={false}
             aria-current={value === minutes ? "page" : undefined}
-            className={`rounded border px-3 py-1.5 text-sm ${
+            className={`inline-flex min-h-11 shrink-0 items-center rounded border px-3 py-2 text-sm md:min-h-0 ${
               value === minutes
                 ? "border-neutral-900 bg-neutral-900 text-white"
                 : "border-neutral-300 bg-white"
@@ -168,7 +170,7 @@ export function LiveBoard({ millId, minutes }: { millId: string; minutes: number
             <span className="ml-2 text-neutral-600">{formatClock(feedTime)}</span>
           ) : null}
         </p>
-        <AlertSound millId={live.millId} alertId={open?.id ?? null} reason={open?.reason ?? ""} />
+        <AlertSound millId={live.millId} openId={open?.id ?? null} alerts={live.alerts} />
         {open ? (
           <p className="basis-full text-sm text-red-950">
             {open.reason}{" "}
@@ -177,7 +179,7 @@ export function LiveBoard({ millId, minutes }: { millId: string; minutes: number
             </Link>
           </p>
         ) : latest ? (
-          <Link href={`/incidents/${latest.id}`} className="text-sm underline">
+          <Link href={`/incidents/${latest.id}`} className="inline-flex min-h-11 items-center text-sm underline md:min-h-0">
             Latest incident, {formatClock(Date.parse(latest.startedAt))}
           </Link>
         ) : (
@@ -185,7 +187,7 @@ export function LiveBoard({ millId, minutes }: { millId: string; minutes: number
         )}
       </section>
 
-      <section className="rounded-lg border border-neutral-200 bg-white p-4 shadow-sm">
+      <section className="rounded-lg border border-neutral-200 bg-white p-3 shadow-sm sm:p-4">
         <h2 className="mb-3 text-sm font-medium">All signals</h2>
         <OverlayChart
           signals={shown}
@@ -218,9 +220,9 @@ export function LiveBoard({ millId, minutes }: { millId: string; minutes: number
           {shown.map((signal) => (
             <section
               key={signal.key}
-              className="rounded-lg border border-neutral-200 bg-white p-4 shadow-sm"
+              className="rounded-lg border border-neutral-200 bg-white p-3 shadow-sm sm:p-4"
             >
-              <div className="mb-2 flex items-baseline justify-between gap-3">
+              <div className="mb-2 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
                 <h2 className="flex items-center gap-1.5 text-sm font-medium">
                   <span style={{ color: signalColor(signal.key) }}>
                     <SignalIcon signal={signal.key} />
@@ -235,7 +237,7 @@ export function LiveBoard({ millId, minutes }: { millId: string; minutes: number
                   <button
                     type="button"
                     onClick={() => setFocus(signal.key)}
-                    className="text-sm underline"
+                    className="inline-flex min-h-11 items-center text-sm underline md:min-h-0"
                   >
                     Expand
                   </button>
@@ -271,9 +273,9 @@ function FocusedChart({
 }) {
   return (
     <div className="flex flex-col gap-4">
-      <section className="rounded-lg border border-neutral-200 bg-white p-4 shadow-sm">
-        <div className="mb-2 flex items-baseline justify-between gap-3">
-          <h2 className="flex items-center gap-1.5 text-sm font-medium">
+      <section className="rounded-lg border border-neutral-200 bg-white p-3 shadow-sm sm:p-4">
+        <div className="mb-2 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+          <h2 className="flex min-w-0 items-center gap-1.5 text-sm font-medium">
             <span style={{ color: signalColor(signal.key) }}>
               <SignalIcon signal={signal.key} />
             </span>
@@ -284,7 +286,7 @@ function FocusedChart({
               {signal.value === null ? "—" : formatValue(signal.value)}{" "}
               <span className="text-sm font-normal text-neutral-500">{signal.unit}</span>
             </p>
-            <button type="button" onClick={onShowAll} className="text-sm underline">
+            <button type="button" onClick={onShowAll} className="inline-flex min-h-11 items-center text-sm underline md:min-h-0">
               Show all
             </button>
           </div>
@@ -304,7 +306,7 @@ function FocusedChart({
             key={item.key}
             type="button"
             onClick={() => onFocus(item.key)}
-            className="inline-flex items-center gap-1.5 rounded border border-neutral-300 bg-white px-3 py-1.5 text-sm"
+            className="inline-flex min-h-11 items-center gap-1.5 rounded border border-neutral-300 bg-white px-3 py-2 text-sm md:min-h-0 md:py-1.5"
           >
             <span style={{ color: signalColor(item.key) }}>
               <SignalIcon signal={item.key} />
@@ -320,93 +322,169 @@ function FocusedChart({
   );
 }
 
+const REPLAY_CLOCK_EVENT = "mill-replay-clock";
+
 function AlertSound({
   millId,
-  alertId,
-  reason,
+  openId,
+  alerts,
 }: {
   millId: string;
-  alertId: string | null;
-  reason: string;
+  openId: string | null;
+  alerts: AlertSummary[];
 }) {
   const [ready, setReady] = useState(false);
   const [blocked, setBlocked] = useState(false);
-  const audio = useRef<AudioContext | null>(null);
-  const sounded = useRef<string | null>(null);
+  const sounded = useRef(new Set<string>());
+  const pending = useRef<string | null>(null);
+  const seen = useRef<Set<string> | null>(null);
+  const openSeen = useRef<Set<string> | null>(null);
+  const simAt = useRef<number | null>(null);
+  const replayFrom = useRef<number | null>(null);
 
   useEffect(() => {
-    return () => {
-      void audio.current?.close();
-    };
-  }, []);
-
-  useEffect(() => {
-    if (!ready || !alertId || sounded.current === alertId) return;
-    sounded.current = alertId;
-    playAlarm(audio.current);
-    if (typeof Notification !== "undefined" && Notification.permission === "granted") {
-      try {
-        new Notification(`Alert on ${millId}`, { body: reason, tag: alertId });
-      } catch {
-        // The tone already played.
-      }
-    }
-  }, [ready, alertId, reason, millId]);
-
-  async function allow() {
-    try {
-      const context = audio.current ?? new AudioContext();
-      audio.current = context;
-      if (context.state === "suspended") await context.resume();
-      if (!alertId) playChime(context);
-      setReady(true);
-      setBlocked(false);
-    } catch {
+    if (typeof Notification === "undefined") {
       setBlocked(true);
       return;
     }
-    if (typeof Notification !== "undefined" && Notification.permission === "default") {
-      await Notification.requestPermission();
+    if (Notification.permission === "granted") setReady(true);
+    if (Notification.permission === "denied") setBlocked(true);
+  }, []);
+
+  useEffect(() => {
+    function announce(alert: AlertSummary | undefined) {
+      if (!alert) return;
+      const key = soundKey(alert);
+      if (sounded.current.has(key)) return;
+      if (!ready) {
+        pending.current = key;
+        return;
+      }
+      sounded.current.add(key);
+      pending.current = null;
+      if (!systemAlert(millId, alert.reason, alert.id)) {
+        sounded.current.delete(key);
+        pending.current = key;
+        setReady(false);
+        setBlocked(true);
+      }
     }
+
+    const waiting = alerts.find((alert) => soundKey(alert) === pending.current);
+    if (waiting && ready) announce(waiting);
+
+    if (seen.current === null || openSeen.current === null) {
+      seen.current = new Set(alerts.map((alert) => alert.id));
+      openSeen.current = new Set(alerts.filter((alert) => alert.endedAt === null).map((alert) => alert.id));
+      return;
+    }
+
+    const arrived = alerts.find((alert) => !seen.current?.has(alert.id));
+    const reopened = alerts.find((alert) => alert.endedAt === null && !openSeen.current?.has(alert.id));
+    seen.current = new Set(alerts.map((alert) => alert.id));
+    openSeen.current = new Set(alerts.filter((alert) => alert.endedAt === null).map((alert) => alert.id));
+    announce(arrived ?? reopened);
+
+    const sim = simAt.current;
+    const from = replayFrom.current;
+    if (sim === null || from === null) return;
+    for (const alert of alerts) {
+      if (inReplay(alert, from, sim)) announce(alert);
+    }
+  }, [alerts, ready, millId]);
+
+  useEffect(() => {
+    function onClock(event: Event) {
+      const at = Date.parse((event as CustomEvent<string>).detail);
+      if (!Number.isFinite(at)) return;
+      const previous = simAt.current;
+      if (previous !== null && at + 2000 < previous) {
+        sounded.current.clear();
+        replayFrom.current = at;
+      }
+      simAt.current = at;
+      replayFrom.current ??= at;
+      const from = replayFrom.current;
+      for (const alert of alerts) {
+        if (!inReplay(alert, from, at) || sounded.current.has(soundKey(alert))) continue;
+        if (!ready) {
+          pending.current = soundKey(alert);
+          continue;
+        }
+        sounded.current.add(soundKey(alert));
+        pending.current = null;
+        if (!systemAlert(millId, alert.reason, alert.id)) {
+          sounded.current.delete(soundKey(alert));
+          pending.current = soundKey(alert);
+          setReady(false);
+          setBlocked(true);
+        }
+      }
+    }
+
+    window.addEventListener(REPLAY_CLOCK_EVENT, onClock);
+    return () => window.removeEventListener(REPLAY_CLOCK_EVENT, onClock);
+  }, [alerts, ready, millId]);
+
+  function allow() {
+    if (typeof Notification === "undefined") {
+      setBlocked(true);
+      return;
+    }
+    void Notification.requestPermission().then((permission) => {
+      if (permission !== "granted") {
+        setBlocked(true);
+        return;
+      }
+      const open = openId ? alerts.find((alert) => alert.id === openId) : undefined;
+      const waiting = alerts.find((alert) => soundKey(alert) === pending.current);
+      const hit = waiting ?? (open && !sounded.current.has(soundKey(open)) ? open : undefined);
+      const played = hit
+        ? systemAlert(millId, hit.reason, hit.id)
+        : systemAlert(millId, "The system sound will play for a new incident.", "alert-sound-on");
+      if (!played) {
+        setBlocked(true);
+        return;
+      }
+      if (hit) {
+        sounded.current.add(soundKey(hit));
+        pending.current = null;
+      }
+      setReady(true);
+      setBlocked(false);
+    });
   }
 
   if (ready) return null;
-  if (blocked) return <p className="text-sm text-neutral-600">Alert sound is blocked in the browser.</p>;
 
   return (
     <button
       type="button"
-      onClick={() => void allow()}
-      className="rounded border border-neutral-300 bg-white px-3 py-1.5 text-sm"
+      onClick={allow}
+        className="min-h-11 rounded border border-neutral-300 bg-white px-3 py-2 text-sm"
     >
-      Allow alert sound
+      {blocked ? "Alert sound is blocked. Try again" : "Allow alert sound"}
     </button>
   );
 }
 
-function playAlarm(context: AudioContext | null) {
-  if (!context) return;
-  const now = context.currentTime;
-  beep(context, 880, now, 0.16);
-  beep(context, 660, now + 0.2, 0.28);
+function inReplay(alert: AlertSummary, from: number, at: number) {
+  const start = Date.parse(alert.startedAt);
+  return start >= from && at >= start;
 }
 
-function playChime(context: AudioContext) {
-  beep(context, 660, context.currentTime, 0.12);
+function soundKey(alert: AlertSummary) {
+  return `${alert.id}@${alert.startedAt}`;
 }
 
-function beep(context: AudioContext, frequency: number, when: number, duration: number) {
-  const tone = context.createOscillator();
-  const level = context.createGain();
-  tone.type = "sine";
-  tone.frequency.value = frequency;
-  level.gain.setValueAtTime(0.0001, when);
-  level.gain.exponentialRampToValueAtTime(0.25, when + 0.02);
-  level.gain.exponentialRampToValueAtTime(0.0001, when + duration);
-  tone.connect(level);
-  level.connect(context.destination);
-  tone.start(when);
-  tone.stop(when + duration + 0.02);
+function systemAlert(millId: string, body: string, tag: string) {
+  if (typeof Notification === "undefined" || Notification.permission !== "granted") return false;
+  try {
+    new Notification(`Alert on ${millId}`, { body, tag, renotify: true } as NotificationOptions);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 function TimeSlider({
@@ -435,7 +513,7 @@ function TimeSlider({
         aria-label="Slide the charts back from the current time"
         aria-valuetext={atCurrent ? "Current" : formatClock(end)}
         onChange={(event) => onBack(maxBack - Number(event.target.value))}
-        className="w-full accent-neutral-900"
+        className="h-11 w-full accent-neutral-900"
       />
       <p className="text-xs text-neutral-500">
         {maxBack < 1000
@@ -447,7 +525,7 @@ function TimeSlider({
         {atCurrent ? (
           <span>Current</span>
         ) : (
-          <button type="button" onClick={() => onBack(0)} className="underline">
+          <button type="button" onClick={() => onBack(0)} className="inline-flex min-h-11 items-center underline md:min-h-0">
             Back to current
           </button>
         )}
