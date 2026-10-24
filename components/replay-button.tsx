@@ -63,6 +63,35 @@ export function ReplayButton() {
   const [remote, setRemote] = useState<ReplayNote | null>(null);
   const stopped = useRef(false);
   const runningRef = useRef(false);
+  const wake = useRef<(() => void) | null>(null);
+  const screenLock = useRef<WakeLockSentinel | null>(null);
+
+  async function holdScreen() {
+    if (screenLock.current || document.hidden || !("wakeLock" in navigator)) return;
+    try {
+      const lock = await navigator.wakeLock.request("screen");
+      if (stopped.current || !runningRef.current) {
+        await lock.release();
+        return;
+      }
+      screenLock.current = lock;
+      lock.addEventListener("release", () => {
+        if (screenLock.current === lock) screenLock.current = null;
+      });
+    } catch {
+      screenLock.current = null;
+    }
+  }
+
+  async function dropScreen() {
+    const lock = screenLock.current;
+    screenLock.current = null;
+    try {
+      await lock?.release();
+    } catch {
+      // The browser releases this lock itself when the page is hidden.
+    }
+  }
 
   useEffect(() => {
     setRemote(readReplay());
@@ -72,18 +101,26 @@ export function ReplayButton() {
       setRemote(readReplay());
     }
 
+    function onVisible() {
+      if (document.visibilityState === "visible" && runningRef.current) void holdScreen();
+    }
+
     window.addEventListener("storage", onStorage);
+    document.addEventListener("visibilitychange", onVisible);
     const timer = window.setInterval(() => {
       const next = readReplay();
       setRemote((current) => (sameReplay(current, next) ? current : next));
     }, 1000);
     return () => {
       stopped.current = true;
+      wake.current?.();
+      void dropScreen();
       if (runningRef.current) {
         writeReplay({ running: false, at: null, updatedAt: Date.now(), finished: false });
         runningRef.current = false;
       }
       window.removeEventListener("storage", onStorage);
+      document.removeEventListener("visibilitychange", onVisible);
       window.clearInterval(timer);
     };
   }, []);
@@ -97,42 +134,80 @@ export function ReplayButton() {
     setError(null);
     setAt(null);
     writeReplay({ running: true, at: null, updatedAt: Date.now(), finished: false });
+    await holdScreen();
 
     let index = 0;
     let total = Number.POSITIVE_INFINITY;
     let latest: string | null = null;
-    while (index < total) {
-      if (stopped.current) return;
-      writeReplay({ running: true, at: latest, updatedAt: Date.now(), finished: false });
-      const response = await fetch("/api/simulate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ index }),
-      });
-      const body = await response.json().catch(() => null);
-      if (stopped.current) return;
-      if (!response.ok) {
-        setError(typeof body?.error === "string" ? body.error : "The replay stopped.");
-        runningRef.current = false;
-        setRunning(false);
-        writeReplay({ running: false, at: latest, updatedAt: Date.now(), finished: false });
-        return;
+    let misses = 0;
+    try {
+      while (index < total) {
+        if (stopped.current) return;
+        writeReplay({ running: true, at: latest, updatedAt: Date.now(), finished: false });
+        let response: Response;
+        try {
+          response = await fetch("/api/simulate", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ index }),
+          });
+        } catch {
+          if (stopped.current) return;
+          misses += 1;
+          if (!document.hidden && misses > 2) {
+            setError("The replay stopped.");
+            runningRef.current = false;
+            setRunning(false);
+            writeReplay({ running: false, at: latest, updatedAt: Date.now(), finished: false });
+            return;
+          }
+          if (misses > 1) {
+            await new Promise<void>((resolve) => {
+              const timer = window.setTimeout(finish, 1000);
+              function finish() {
+                window.clearTimeout(timer);
+                document.removeEventListener("visibilitychange", onRetry);
+                if (wake.current === finish) wake.current = null;
+                resolve();
+              }
+              function onRetry() {
+                if (document.visibilityState === "visible") finish();
+              }
+              wake.current = finish;
+              document.addEventListener("visibilitychange", onRetry);
+            });
+            if (stopped.current) return;
+          }
+          continue;
+        }
+        misses = 0;
+        const body = await response.json().catch(() => null);
+        if (stopped.current) return;
+        if (!response.ok) {
+          setError(typeof body?.error === "string" ? body.error : "The replay stopped.");
+          runningRef.current = false;
+          setRunning(false);
+          writeReplay({ running: false, at: latest, updatedAt: Date.now(), finished: false });
+          return;
+        }
+        total = body.total;
+        index = body.index + 1;
+        if (typeof body.at === "string") {
+          latest = body.at;
+          setAt(body.at);
+          writeReplay({ running: true, at: body.at, updatedAt: Date.now(), finished: false });
+          window.dispatchEvent(new CustomEvent(REPLAY_CLOCK_EVENT, { detail: body.at }));
+        }
       }
-      total = body.total;
-      index = body.index + 1;
-      if (typeof body.at === "string") {
-        latest = body.at;
-        setAt(body.at);
-        writeReplay({ running: true, at: body.at, updatedAt: Date.now(), finished: false });
-        window.dispatchEvent(new CustomEvent(REPLAY_CLOCK_EVENT, { detail: body.at }));
-      }
-    }
 
-    if (stopped.current) return;
-    runningRef.current = false;
-    setRunning(false);
-    setFinished(true);
-    writeReplay({ running: false, at: latest, updatedAt: Date.now(), finished: true });
+      if (stopped.current) return;
+      runningRef.current = false;
+      setRunning(false);
+      setFinished(true);
+      writeReplay({ running: false, at: latest, updatedAt: Date.now(), finished: true });
+    } finally {
+      await dropScreen();
+    }
   }
 
   const mirrored = !running && replayBusy(remote);

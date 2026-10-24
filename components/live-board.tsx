@@ -35,15 +35,27 @@ export function LiveBoard({ millId, minutes }: { millId: string; minutes: number
 
   useEffect(() => {
     let stopped = false;
+    let inflight: AbortController | null = null;
+    let resume: (() => void) | null = null;
     const windowMs = STORED_MINUTES * 60 * 1000;
     liveRef.current = null;
+
+    function onVisibility() {
+      inflight?.abort();
+      if (document.visibilityState === "visible") resume?.();
+    }
 
     async function load() {
       const since = newestBucket(liveRef.current);
       const params = new URLSearchParams({ mill_id: millId, minutes: String(STORED_MINUTES) });
       if (since) params.set("since", since);
-      const response = await fetch(`/api/live?${params}`, { cache: "no-store" });
-      if (stopped) return;
+      const controller = new AbortController();
+      inflight = controller;
+      const response = await fetch(`/api/live?${params}`, {
+        cache: "no-store",
+        signal: controller.signal,
+      });
+      if (stopped || controller.signal.aborted) return;
       if (response.status === 401) {
         window.location.assign("/login");
         return;
@@ -81,14 +93,31 @@ export function LiveBoard({ millId, minutes }: { millId: string; minutes: number
 
     async function loop() {
       while (!stopped) {
-        await load();
-        await new Promise((resolve) => setTimeout(resolve, POLL_MS));
+        try {
+          await load();
+        } catch {
+          // The screen sleep drops this poll. The next pass reads the seconds the replay kept saving.
+        }
+        if (stopped) return;
+        await new Promise<void>((resolve) => {
+          const timer = window.setTimeout(finish, POLL_MS);
+          function finish() {
+            window.clearTimeout(timer);
+            if (resume === finish) resume = null;
+            resolve();
+          }
+          resume = finish;
+        });
       }
     }
 
+    document.addEventListener("visibilitychange", onVisibility);
     loop();
     return () => {
       stopped = true;
+      inflight?.abort();
+      resume?.();
+      document.removeEventListener("visibilitychange", onVisibility);
     };
   }, [millId]);
 
