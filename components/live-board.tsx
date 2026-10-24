@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { OverlayChart } from "@/components/overlay-chart";
-import { PageLoader } from "@/components/page-loader";
+import { LiveSkeleton } from "@/components/page-skeleton";
 import { SignalIcon, signalColor } from "@/components/signal-mark";
 import { ChartLegend, SignalChart } from "@/components/signal-chart";
 import {
@@ -89,7 +89,7 @@ export function LiveBoard({ millId, minutes }: { millId: string; minutes: number
   }, [millId]);
 
   if (error) return <p className="text-sm text-neutral-600">{error}</p>;
-  if (!live) return <PageLoader label="Loading live mill" />;
+  if (!live) return <LiveSkeleton />;
 
   const span = signalSpan(live.signals);
   const viewMs = minutes * 60 * 1000;
@@ -170,7 +170,7 @@ export function LiveBoard({ millId, minutes }: { millId: string; minutes: number
             <span className="ml-2 text-neutral-600">{formatClock(feedTime)}</span>
           ) : null}
         </p>
-        <AlertSound millId={live.millId} openId={open?.id ?? null} alerts={live.alerts} />
+        <AlertSound openId={open?.id ?? null} alerts={live.alerts} />
         {open ? (
           <p className="basis-full text-sm text-red-950">
             {open.reason}{" "}
@@ -325,16 +325,15 @@ function FocusedChart({
 const REPLAY_CLOCK_EVENT = "mill-replay-clock";
 
 function AlertSound({
-  millId,
   openId,
   alerts,
 }: {
-  millId: string;
   openId: string | null;
   alerts: AlertSummary[];
 }) {
   const [ready, setReady] = useState(false);
   const [blocked, setBlocked] = useState(false);
+  const audio = useRef<AudioContext | null>(null);
   const sounded = useRef(new Set<string>());
   const pending = useRef<string | null>(null);
   const seen = useRef<Set<string> | null>(null);
@@ -343,31 +342,20 @@ function AlertSound({
   const replayFrom = useRef<number | null>(null);
 
   useEffect(() => {
-    if (typeof Notification === "undefined") {
-      setBlocked(true);
-      return;
-    }
-    if (Notification.permission === "granted") setReady(true);
-    if (Notification.permission === "denied") setBlocked(true);
-  }, []);
-
-  useEffect(() => {
     function announce(alert: AlertSummary | undefined) {
       if (!alert) return;
       const key = soundKey(alert);
       if (sounded.current.has(key)) return;
-      if (!ready) {
+      if (!ready || !beep(audio.current)) {
         pending.current = key;
+        if (ready) {
+          setReady(false);
+          setBlocked(true);
+        }
         return;
       }
       sounded.current.add(key);
       pending.current = null;
-      if (!systemAlert(millId, alert.reason, alert.id)) {
-        sounded.current.delete(key);
-        pending.current = key;
-        setReady(false);
-        setBlocked(true);
-      }
     }
 
     const waiting = alerts.find((alert) => soundKey(alert) === pending.current);
@@ -391,7 +379,7 @@ function AlertSound({
     for (const alert of alerts) {
       if (inReplay(alert, from, sim)) announce(alert);
     }
-  }, [alerts, ready, millId]);
+  }, [alerts, ready]);
 
   useEffect(() => {
     function onClock(event: Event) {
@@ -407,52 +395,55 @@ function AlertSound({
       const from = replayFrom.current;
       for (const alert of alerts) {
         if (!inReplay(alert, from, at) || sounded.current.has(soundKey(alert))) continue;
-        if (!ready) {
-          pending.current = soundKey(alert);
+        const key = soundKey(alert);
+        if (!ready || !beep(audio.current)) {
+          pending.current = key;
+          if (ready) {
+            setReady(false);
+            setBlocked(true);
+          }
           continue;
         }
-        sounded.current.add(soundKey(alert));
+        sounded.current.add(key);
         pending.current = null;
-        if (!systemAlert(millId, alert.reason, alert.id)) {
-          sounded.current.delete(soundKey(alert));
-          pending.current = soundKey(alert);
-          setReady(false);
-          setBlocked(true);
-        }
       }
     }
 
     window.addEventListener(REPLAY_CLOCK_EVENT, onClock);
     return () => window.removeEventListener(REPLAY_CLOCK_EVENT, onClock);
-  }, [alerts, ready, millId]);
+  }, [alerts, ready]);
 
   function allow() {
-    if (typeof Notification === "undefined") {
+    const ctx = audio.current ?? (typeof AudioContext === "undefined" ? null : new AudioContext());
+    if (!ctx) {
       setBlocked(true);
       return;
     }
-    void Notification.requestPermission().then((permission) => {
-      if (permission !== "granted") {
-        setBlocked(true);
-        return;
-      }
-      const open = openId ? alerts.find((alert) => alert.id === openId) : undefined;
-      const waiting = alerts.find((alert) => soundKey(alert) === pending.current);
-      const hit = waiting ?? (open && !sounded.current.has(soundKey(open)) ? open : undefined);
-      const played = hit
-        ? systemAlert(millId, hit.reason, hit.id)
-        : systemAlert(millId, "The system sound will play for a new incident.", "alert-sound-on");
-      if (!played) {
-        setBlocked(true);
-        return;
-      }
-      if (hit) {
-        sounded.current.add(soundKey(hit));
-        pending.current = null;
-      }
-      setReady(true);
-      setBlocked(false);
-    });
+    audio.current = ctx;
+    const resume = ctx.resume();
+    try {
+      playTone(ctx);
+    } catch {
+      setBlocked(true);
+      return;
+    }
+    void resume
+      .then(() => {
+        if (ctx.state !== "running") {
+          setBlocked(true);
+          return;
+        }
+        const open = openId ? alerts.find((alert) => alert.id === openId) : undefined;
+        const waiting = alerts.find((alert) => soundKey(alert) === pending.current);
+        const hit = waiting ?? (open && !sounded.current.has(soundKey(open)) ? open : undefined);
+        if (hit) {
+          sounded.current.add(soundKey(hit));
+          pending.current = null;
+        }
+        setReady(true);
+        setBlocked(false);
+      })
+      .catch(() => setBlocked(true));
   }
 
   if (ready) return null;
@@ -461,7 +452,7 @@ function AlertSound({
     <button
       type="button"
       onClick={allow}
-        className="min-h-11 rounded border border-neutral-300 bg-white px-3 py-2 text-sm"
+      className="min-h-11 rounded border border-neutral-300 bg-white px-3 py-2 text-sm"
     >
       {blocked ? "Alert sound is blocked. Try again" : "Allow alert sound"}
     </button>
@@ -477,13 +468,30 @@ function soundKey(alert: AlertSummary) {
   return `${alert.id}@${alert.startedAt}`;
 }
 
-function systemAlert(millId: string, body: string, tag: string) {
-  if (typeof Notification === "undefined" || Notification.permission !== "granted") return false;
+function beep(ctx: AudioContext | null) {
+  if (!ctx || ctx.state !== "running") return false;
   try {
-    new Notification(`Alert on ${millId}`, { body, tag, renotify: true } as NotificationOptions);
+    playTone(ctx);
     return true;
   } catch {
     return false;
+  }
+}
+
+function playTone(ctx: AudioContext) {
+  const now = ctx.currentTime;
+  for (const start of [0, 0.22]) {
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = "sine";
+    osc.frequency.setValueAtTime(880, now + start);
+    gain.gain.setValueAtTime(0.0001, now + start);
+    gain.gain.exponentialRampToValueAtTime(0.18, now + start + 0.02);
+    gain.gain.exponentialRampToValueAtTime(0.0001, now + start + 0.18);
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start(now + start);
+    osc.stop(now + start + 0.2);
   }
 }
 

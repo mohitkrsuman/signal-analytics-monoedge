@@ -1,5 +1,5 @@
-import { PageLoader } from "@/components/page-loader";
+import { MonitorSkeleton } from "@/components/page-skeleton";
 
 export default function MonitorLoading() {
-  return <PageLoader label="Loading" />;
+  return <MonitorSkeleton />;
 }

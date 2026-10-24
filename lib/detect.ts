@@ -83,7 +83,7 @@ type Draft = {
 type Action = { op: "insert"; draft: Draft } | { op: "update"; id: string; draft: Draft };
 
 export async function detect(millId: string, _from: string, to: string) {
-  const endMs = Math.floor(Date.parse(to) / 1000) * 1000;
+  const endMs = Math.floor(Date.parse(to) / 1000) * 1000; // to get in ms
   if (!Number.isFinite(endMs)) return;
 
   const { createAdminClient } = await import("@/utils/supabase/admin");
@@ -306,7 +306,7 @@ function levelOf(values: number[], minimum: number): Level | null {
   if (values.length < minimum) return null;
   const center = median(values);
   const spread = median(values.map((value) => Math.abs(value - center)));
-  const scale = Math.max(1.4826 * spread, Math.abs(center) * 0.0005, 1e-6);
+  const scale = Math.max(1.4826 * spread, Math.abs(center) * 0.0005, 1e-6); // preventing it from being 0
   return { center, scale };
 }
 
