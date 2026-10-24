@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import { SITE_TITLE, SITE_URL, TITLE_TEMPLATE } from "@/lib/site";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -19,15 +20,25 @@ export const viewport: Viewport = {
 };
 
 export const metadata: Metadata = {
-  title: "Signal Analytics Platform",
-  description: "The Signal Analytics Platform is a platform for analyzing and visualizing data from the Signal app.",
-  icons: {
-    icon: "/favicon.ico",
+  metadataBase: new URL(SITE_URL),
+  applicationName: SITE_TITLE,
+  title: {
+    default: SITE_TITLE,
+    template: TITLE_TEMPLATE,
   },
+  description:
+    "Watch steel rolling mill RM-01 live, look back at stored signals, and open abnormal events.",
   openGraph: {
-    title: "Signal Analytics Platform",
-    description: "The Signal Analytics Platform is a platform for analyzing and visualizing data from the Signal app.",
-    url: "https://signal-analytics-monoedge.vercel.app",
+    type: "website",
+    siteName: SITE_TITLE,
+    locale: "en_US",
+  },
+  twitter: {
+    card: "summary",
+  },
+  robots: {
+    index: true,
+    follow: true,
   },
 };
 

@@ -2,6 +2,13 @@ import { Suspense } from "react";
 import { LiveBoard } from "@/components/live-board";
 import { LiveSkeleton } from "@/components/page-skeleton";
 import { liveWindowMinutes, MILL_ID } from "@/lib/monitor";
+import { pageMeta } from "@/lib/site";
+
+export const metadata = pageMeta(
+  "Live",
+  "Live readings for mill RM-01. Status, the latest value of each signal, and the last few minutes of 1-second rollups.",
+  "/",
+);
 
 export default function LivePage({
   searchParams,

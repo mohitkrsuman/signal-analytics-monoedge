@@ -11,6 +11,13 @@ import {
   type HistoryRangeKey,
 } from "@/lib/monitor";
 import { getHistory, getMills, getSessionClient, listAlerts } from "@/lib/query";
+import { pageMeta } from "@/lib/site";
+
+export const metadata = pageMeta(
+  "History",
+  "One-second rollups for mill RM-01. Compare normal running, the load step, and the cobble across the stored replay.",
+  "/history",
+);
 
 export default function HistoryPage({
   searchParams,
