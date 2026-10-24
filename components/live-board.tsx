@@ -44,6 +44,10 @@ export function LiveBoard({ millId, minutes }: { millId: string; minutes: number
       if (since) params.set("since", since);
       const response = await fetch(`/api/live?${params}`, { cache: "no-store" });
       if (stopped) return;
+      if (response.status === 401) {
+        window.location.assign("/login");
+        return;
+      }
       if (!response.ok) {
         setError("The live reading could not be loaded.");
         return;
