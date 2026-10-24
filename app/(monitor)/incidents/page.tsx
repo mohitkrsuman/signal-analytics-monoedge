@@ -1,12 +1,19 @@
 import { Suspense } from "react";
 import Link from "next/link";
-import { PageLoader } from "@/components/page-loader";
+import { IncidentsSkeleton } from "@/components/page-skeleton";
 import { type AlertSummary, formatClock, MILL_ID, signalLabel } from "@/lib/monitor";
 import { getMills, getSessionClient, listAlerts } from "@/lib/query";
+import { pageMeta } from "@/lib/site";
+
+export const metadata = pageMeta(
+  "Incidents",
+  "Alerts for mill RM-01, newest first. Open one to see which signals moved and why.",
+  "/incidents",
+);
 
 export default function IncidentsPage() {
   return (
-    <Suspense fallback={<PageLoader label="Loading incidents" />}>
+    <Suspense fallback={<IncidentsSkeleton />}>
       <Incidents />
     </Suspense>
   );

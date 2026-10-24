@@ -1,6 +1,6 @@
 import { Suspense } from "react";
 import Link from "next/link";
-import { PageLoader } from "@/components/page-loader";
+import { HistorySkeleton } from "@/components/page-skeleton";
 import { SignalIcon, signalColor } from "@/components/signal-mark";
 import { ChartLegend, SignalChart } from "@/components/signal-chart";
 import {
@@ -11,6 +11,13 @@ import {
   type HistoryRangeKey,
 } from "@/lib/monitor";
 import { getHistory, getMills, getSessionClient, listAlerts } from "@/lib/query";
+import { pageMeta } from "@/lib/site";
+
+export const metadata = pageMeta(
+  "History",
+  "One-second rollups for mill RM-01. Compare normal running, the load step, and the cobble across the stored replay.",
+  "/history",
+);
 
 export default function HistoryPage({
   searchParams,
@@ -18,7 +25,7 @@ export default function HistoryPage({
   searchParams: Promise<{ signal?: string | string[]; range?: string | string[] }>;
 }) {
   return (
-    <Suspense fallback={<PageLoader label="Loading history" />}>
+    <Suspense fallback={<HistorySkeleton />}>
       <History searchParams={searchParams} />
     </Suspense>
   );

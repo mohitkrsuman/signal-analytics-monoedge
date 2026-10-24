@@ -1,16 +1,42 @@
 import { Suspense } from "react";
+import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { OverlayChart } from "@/components/overlay-chart";
-import { PageLoader } from "@/components/page-loader";
+import { IncidentSkeleton } from "@/components/page-skeleton";
 import { SignalIcon, signalColor } from "@/components/signal-mark";
 import { ChartLegend, SignalChart } from "@/components/signal-chart";
 import { formatClock, formatValue, type SignalEvidence } from "@/lib/monitor";
 import { getAlert, getSessionClient } from "@/lib/query";
+import { pageMeta } from "@/lib/site";
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}): Promise<Metadata> {
+  const { id } = await params;
+  const path = `/incidents/${id}`;
+  const supabase = await getSessionClient();
+  if (!supabase) {
+    return pageMeta("Incident", "Sign in to read this mill incident.", path);
+  }
+  const { data } = await supabase
+    .from("alerts")
+    .select("mill_id, severity, reason")
+    .eq("id", id)
+    .maybeSingle();
+  if (!data) return pageMeta("Incident", "This incident was not found.", path);
+  const severity = data.severity
+    ? data.severity.charAt(0).toUpperCase() + data.severity.slice(1)
+    : "Incident";
+  const reason = data.reason?.trim() || "A recorded mill incident.";
+  return pageMeta(`${severity} incident on ${data.mill_id}`, reason, path);
+}
 
 export default function IncidentPage({ params }: { params: Promise<{ id: string }> }) {
   return (
-    <Suspense fallback={<PageLoader label="Loading incident" />}>
+    <Suspense fallback={<IncidentSkeleton />}>
       <Incident params={params} />
     </Suspense>
   );
