@@ -15,6 +15,7 @@ import {
   SAMPLES_PER_SECOND,
   SIGNALS,
   generateBatch,
+  waitForBatch,
   type Batch,
 } from "./replay.mts";
 
@@ -138,6 +139,7 @@ async function main(): Promise<void> {
   }
 
   for (let batchIndex = 0; batchIndex < BATCH_COUNT; batchIndex += 1) {
+    const started = Date.now();
     const result = await postBatch(url, secret, generateBatch(batchIndex));
     if (result === "missing") {
       console.log(`Ingest is not available at ${url}${INGEST_PATH}. Writing a local fixture.`);
@@ -145,9 +147,7 @@ async function main(): Promise<void> {
       return;
     }
     if (result === "rejected") process.exit(1);
-    if (argv.includes("--realtime") && batchIndex < BATCH_COUNT - 1) {
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-    }
+    if (argv.includes("--realtime") && batchIndex < BATCH_COUNT - 1) await waitForBatch(started);
   }
 
   console.log(`Posted ${BATCH_COUNT} batches to ${url}${INGEST_PATH}.`);

@@ -12,13 +12,20 @@ export const COBBLE_STARTS = [
 ] as const;
 
 const SAMPLE_MS = 20;
-const REPLAY_MS = 10 * 60 * 1000;
+export const BATCH_MS = 1000;
+const REPLAY_MS = 10 * 60 * BATCH_MS;
 const COBBLE_MS = 8_000;
 const REPLAY_START_MS = Date.parse(REPLAY_START);
 const LOAD_STEP_START_MS = Date.parse(LOAD_STEP_START);
 
-export const SAMPLES_PER_SECOND = 1000 / SAMPLE_MS;
-export const BATCH_COUNT = REPLAY_MS / 1000;
+export const SAMPLES_PER_SECOND = BATCH_MS / SAMPLE_MS;
+export const BATCH_COUNT = REPLAY_MS / BATCH_MS;
+
+export function waitForBatch(startedAt: number) {
+  const remaining = Math.max(0, BATCH_MS - (Date.now() - startedAt));
+  if (remaining === 0) return Promise.resolve();
+  return new Promise<void>((resolve) => setTimeout(resolve, remaining));
+}
 
 const COBBLES = [
   { startMs: Date.parse(COBBLE_STARTS[0]), current: 210, vibration: 8, speed: -48, force: -510, jitter: 36 },
