@@ -26,33 +26,38 @@ export async function saveBatch(body: {
     }
   }
 
-  const admin = createAdminClient();
-  const saved = await admin.from("readings").upsert(
-    samples.map((sample) => ({
-      mill_id: mill.id,
-      signal: sample.signal,
-      ts: sample.timestamp,
-      value: sample.value,
-    })),
-    { onConflict: "mill_id,signal,ts" },
-  );
-  if (saved.error) return { error: saved.error.message, status: 500 };
-
-  const rolled = await admin.from("rollups").upsert(buildRollups(mill.id, samples), {
-    onConflict: "mill_id,signal,bucket_start",
-  });
-  if (rolled.error) return { error: rolled.error.message, status: 500 };
-
   const times = samples.map((sample) => Date.parse(sample.timestamp));
   const from = new Date(Math.min(...times)).toISOString();
   const to = new Date(Math.max(...times)).toISOString();
+
+  // Readings and rollups do not depend on each other, so they share one round trip.
+  const admin = createAdminClient();
+  const [saved, rolled] = await Promise.all([
+    admin.from("readings").upsert(
+      samples.map((sample) => ({
+        mill_id: mill.id,
+        signal: sample.signal,
+        ts: sample.timestamp,
+        value: sample.value,
+      })),
+      { onConflict: "mill_id,signal,ts" },
+    ),
+    admin.from("rollups").upsert(buildRollups(mill.id, samples), {
+      onConflict: "mill_id,signal,bucket_start",
+    }),
+  ]);
+  if (saved.error) return { error: saved.error.message, status: 500 };
+  if (rolled.error) return { error: rolled.error.message, status: 500 };
+
   noteIngest(mill.id, to);
-  const marked = await admin
-    .from("mills")
-    .update({ ingest_head: to, updated_at: new Date().toISOString() })
-    .eq("id", mill.id);
+  const [marked] = await Promise.all([
+    admin
+      .from("mills")
+      .update({ ingest_head: to, updated_at: new Date().toISOString() })
+      .eq("id", mill.id),
+    detect(mill.id, from, to),
+  ]);
   if (marked.error) return { error: marked.error.message, status: 500 };
-  await detect(mill.id, from, to);
 
   return { count: samples.length };
 }

@@ -8,6 +8,8 @@ const REPLAY_CLOCK_EVENT = "mill-replay-clock";
 const REPLAY_KEY = "mill-replay";
 const RESTART_KEY = "mill-replay-restart";
 const REPLAY_STALE_MS = 8000;
+// A live mill posts one second of samples every second.
+const BATCH_INTERVAL_MS = 1000;
 
 type ReplayNote = {
   running: boolean;
@@ -130,6 +132,24 @@ export function ReplayButton() {
     };
   }, []);
 
+  // Waits ms, or less if the tab becomes visible again or a restart wakes it.
+  function pause(ms: number) {
+    return new Promise<void>((resolve) => {
+      const timer = window.setTimeout(finish, ms);
+      function finish() {
+        window.clearTimeout(timer);
+        document.removeEventListener("visibilitychange", onVisible);
+        if (wake.current === finish) wake.current = null;
+        resolve();
+      }
+      function onVisible() {
+        if (document.visibilityState === "visible") finish();
+      }
+      wake.current = finish;
+      document.addEventListener("visibilitychange", onVisible);
+    });
+  }
+
   async function run(restarting = false) {
     if (!restarting && (runningRef.current || replayBusy(readReplay()))) return;
     const ticket = generation.current + 1;
@@ -152,9 +172,16 @@ export function ReplayButton() {
     let total = Number.POSITIVE_INFINITY;
     let latest: string | null = null;
     let misses = 0;
+    const startedAt = Date.now();
     try {
       while (index < total) {
         if (stopped.current || generation.current !== ticket) return;
+        // Batch n is due at start + n seconds. A late batch goes out at once, so the replay catches up.
+        const due = startedAt + index * BATCH_INTERVAL_MS - Date.now();
+        if (due > 0) {
+          await pause(due);
+          if (stopped.current || generation.current !== ticket) return;
+        }
         writeReplay({ running: true, at: latest, updatedAt: Date.now(), finished: false });
         let response: Response;
         try {
@@ -175,20 +202,7 @@ export function ReplayButton() {
             return;
           }
           if (misses > 1) {
-            await new Promise<void>((resolve) => {
-              const timer = window.setTimeout(finish, 1000);
-              function finish() {
-                window.clearTimeout(timer);
-                document.removeEventListener("visibilitychange", onRetry);
-                if (wake.current === finish) wake.current = null;
-                resolve();
-              }
-              function onRetry() {
-                if (document.visibilityState === "visible") finish();
-              }
-              wake.current = finish;
-              document.addEventListener("visibilitychange", onRetry);
-            });
+            await pause(1000);
             if (stopped.current || generation.current !== ticket) return;
           }
           continue;

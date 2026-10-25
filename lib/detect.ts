@@ -90,8 +90,10 @@ export async function detect(millId: string, _from: string, to: string) {
   const admin = createAdminClient();
   const since = new Date(endMs - LOOKBACK_MS - RECENT_MS).toISOString();
   const until = new Date(endMs).toISOString();
-  const rollups = await loadRollups(admin, millId, since, until);
-  const alerts = await loadAlerts(admin, millId, endMs);
+  const [rollups, alerts] = await Promise.all([
+    loadRollups(admin, millId, since, until),
+    loadAlerts(admin, millId, endMs),
+  ]);
 
   for (const action of decide(until, rollups, alerts)) {
     const write =
@@ -353,9 +355,9 @@ function group(rows: RollupRow[]) {
 type Admin = Awaited<ReturnType<typeof import("@/utils/supabase/admin").createAdminClient>>;
 
 async function loadRollups(admin: Admin, millId: string, since: string, until: string) {
-  const rows: RollupRow[] = [];
-  for (let offset = 0; offset < 5000; offset += 1000) {
-    const { data, error } = await admin
+  // The window is about 1,200 rows, so fetch the first two pages together. More pages follow only if needed.
+  const page = (offset: number) =>
+    admin
       .from("rollups")
       .select("signal, bucket_start, avg, min, max, stddev")
       .eq("mill_id", millId)
@@ -364,9 +366,17 @@ async function loadRollups(admin: Admin, millId: string, since: string, until: s
       .order("bucket_start", { ascending: true })
       .order("signal", { ascending: true })
       .range(offset, offset + 999);
-    if (error) throw new Error(error.message);
-    rows.push(...(data ?? []));
-    if ((data ?? []).length < 1000) break;
+
+  const rows: RollupRow[] = [];
+  const pages = await Promise.all([page(0), page(1000)]);
+  for (let offset = 2000; ; offset += 1000) {
+    for (const { data, error } of pages) {
+      if (error) throw new Error(error.message);
+      rows.push(...(data ?? []));
+    }
+    const last = pages[pages.length - 1].data ?? [];
+    if (last.length < 1000 || offset >= 5000) break;
+    pages.splice(0, pages.length, await page(offset));
   }
   return rows;
 }
