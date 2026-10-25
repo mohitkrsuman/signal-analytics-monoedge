@@ -1,11 +1,10 @@
 import { saveBatch } from "@/lib/ingest-batch";
 import { getSessionClient } from "@/lib/query";
-import { BATCH_COUNT, BATCH_MS, generateBatch, REPLAY_START, waitForBatch } from "@/simulator/replay.mts";
+import { BATCH_COUNT, BATCH_MS, generateBatch, REPLAY_START } from "@/simulator/replay.mts";
 
 export const maxDuration = 60;
 
 export async function POST(request: Request) {
-  const started = Date.now();
   const supabase = await getSessionClient();
   if (!supabase) return Response.json({ error: "Unauthorized" }, { status: 401 });
 
@@ -25,6 +24,5 @@ export async function POST(request: Request) {
   if ("error" in saved) return Response.json({ error: saved.error }, { status: saved.status });
 
   const at = new Date(Date.parse(REPLAY_START) + index * BATCH_MS).toISOString();
-  await waitForBatch(started);
   return Response.json({ index, total: BATCH_COUNT, at });
 }

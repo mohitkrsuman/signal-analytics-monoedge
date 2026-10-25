@@ -1,11 +1,12 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Pause, Play } from "lucide-react";
+import { Pause, Play, RotateCcw } from "lucide-react";
 import { formatClock } from "@/lib/monitor";
 
 const REPLAY_CLOCK_EVENT = "mill-replay-clock";
 const REPLAY_KEY = "mill-replay";
+const RESTART_KEY = "mill-replay-restart";
 const REPLAY_STALE_MS = 8000;
 
 type ReplayNote = {
@@ -65,6 +66,9 @@ export function ReplayButton() {
   const runningRef = useRef(false);
   const wake = useRef<(() => void) | null>(null);
   const screenLock = useRef<WakeLockSentinel | null>(null);
+  const generation = useRef(0);
+  const request = useRef<AbortController | null>(null);
+  const startReplay = useRef<(restarting?: boolean) => void>(() => {});
 
   async function holdScreen() {
     if (screenLock.current || document.hidden || !("wakeLock" in navigator)) return;
@@ -97,8 +101,8 @@ export function ReplayButton() {
     setRemote(readReplay());
 
     function onStorage(event: StorageEvent) {
-      if (event.key !== REPLAY_KEY) return;
-      setRemote(readReplay());
+      if (event.key === REPLAY_KEY) setRemote(readReplay());
+      if (event.key === RESTART_KEY && runningRef.current) startReplay.current(true);
     }
 
     function onVisible() {
@@ -113,6 +117,7 @@ export function ReplayButton() {
     }, 1000);
     return () => {
       stopped.current = true;
+      request.current?.abort();
       wake.current?.();
       void dropScreen();
       if (runningRef.current) {
@@ -125,8 +130,14 @@ export function ReplayButton() {
     };
   }, []);
 
-  async function run() {
-    if (runningRef.current || replayBusy(readReplay())) return;
+  async function run(restarting = false) {
+    if (!restarting && (runningRef.current || replayBusy(readReplay()))) return;
+    const ticket = generation.current + 1;
+    generation.current = ticket;
+    request.current?.abort();
+    wake.current?.();
+    const controller = new AbortController();
+    request.current = controller;
     runningRef.current = true;
     stopped.current = false;
     setRunning(true);
@@ -135,6 +146,7 @@ export function ReplayButton() {
     setAt(null);
     writeReplay({ running: true, at: null, updatedAt: Date.now(), finished: false });
     await holdScreen();
+    if (generation.current !== ticket) return;
 
     let index = 0;
     let total = Number.POSITIVE_INFINITY;
@@ -142,7 +154,7 @@ export function ReplayButton() {
     let misses = 0;
     try {
       while (index < total) {
-        if (stopped.current) return;
+        if (stopped.current || generation.current !== ticket) return;
         writeReplay({ running: true, at: latest, updatedAt: Date.now(), finished: false });
         let response: Response;
         try {
@@ -150,9 +162,10 @@ export function ReplayButton() {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ index }),
+            signal: controller.signal,
           });
         } catch {
-          if (stopped.current) return;
+          if (stopped.current || generation.current !== ticket) return;
           misses += 1;
           if (!document.hidden && misses > 2) {
             setError("The replay stopped.");
@@ -176,13 +189,13 @@ export function ReplayButton() {
               wake.current = finish;
               document.addEventListener("visibilitychange", onRetry);
             });
-            if (stopped.current) return;
+            if (stopped.current || generation.current !== ticket) return;
           }
           continue;
         }
         misses = 0;
         const body = await response.json().catch(() => null);
-        if (stopped.current) return;
+        if (stopped.current || generation.current !== ticket) return;
         if (!response.ok) {
           setError(typeof body?.error === "string" ? body.error : "The replay stopped.");
           runningRef.current = false;
@@ -200,14 +213,25 @@ export function ReplayButton() {
         }
       }
 
-      if (stopped.current) return;
+      if (stopped.current || generation.current !== ticket) return;
       runningRef.current = false;
       setRunning(false);
       setFinished(true);
       writeReplay({ running: false, at: latest, updatedAt: Date.now(), finished: true });
     } finally {
-      await dropScreen();
+      if (generation.current === ticket) await dropScreen();
     }
+  }
+
+  startReplay.current = run;
+
+  function restart() {
+    try {
+      localStorage.setItem(RESTART_KEY, String(Date.now()));
+    } catch {
+      // This tab can still restart its own loop.
+    }
+    if (runningRef.current) void run(true);
   }
 
   const mirrored = !running && replayBusy(remote);
@@ -221,13 +245,23 @@ export function ReplayButton() {
     <div className="flex flex-col gap-2">
       <button
         type="button"
-        onClick={run}
+        onClick={() => run()}
         disabled={running || mirrored}
         className="flex min-h-11 w-full cursor-pointer items-center justify-center gap-2 rounded-md bg-neutral-900 px-3 py-2 text-sm text-white disabled:opacity-60 md:min-h-0 md:py-1.5"
       >
         {running || mirrored ? <Pause aria-hidden="true" size={16} /> : <Play aria-hidden="true" size={16} />}
         {running || mirrored ? (clock ? `Replaying ${clock}` : "Replaying") : "Run replay"}
       </button>
+      {running || mirrored ? (
+        <button
+          type="button"
+          onClick={restart}
+          className="flex min-h-11 w-full cursor-pointer items-center justify-center gap-2 rounded-md border border-neutral-300 bg-white px-3 py-2 text-sm hover:bg-neutral-50 md:min-h-0 md:py-1.5"
+        >
+          <RotateCcw aria-hidden="true" size={16} />
+          Restart
+        </button>
+      ) : null}
       {error ? <p className="text-xs text-red-800">{error}</p> : null}
       {showFinished ? <p className="text-xs text-neutral-500">Replay finished.</p> : null}
     </div>
